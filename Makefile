@@ -16,7 +16,7 @@ all: quash
 test: quash
 	./quash
 
-quash: signals.c
+quash: quash.c
 	gcc -g $^ -o $@
 
 clean:
