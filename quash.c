@@ -10,7 +10,7 @@
 
 /**************************************************************************
  * Included Files
- **************************************************************************/ 
+ **************************************************************************/
 #include "quash.h"	// Putting this above the other includes allows us to ensure
 					// this file's headder's #include statements are self
 					// contained.
@@ -20,7 +20,7 @@
  **************************************************************************/
 /**
  * Keep track of whether Quash should request another command or not.
-	*/
+ */
 // NOTE: "static" causes the "running" variable to only be declared in this
 // compilation unit (this file and all files that include it). This is similar
 // to private in other languages.
