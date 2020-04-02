@@ -8,19 +8,10 @@
  * Project 1 Quash's main file
  */
 
-/**************************************************************************
- * Included Files
- **************************************************************************/
 #include "quash.h"
 
 
-/**************************************************************************
- * Private Variables
- **************************************************************************/
-
-/**
- * Request Quash commands or suspend
- */
+ // Private global variables
 
 static bool running_from_file;
 
@@ -36,7 +27,7 @@ static int num_jobs = 0;
 /**
  * Start the main loop by setting the running flag to true
 	*/
-static void start()
+static void start_quash()
 {
 	m_running = true;
 }
@@ -81,10 +72,8 @@ void suspend_from_file()
 
 /**
 	* Mask Signal
-	*
 	*	From Signals Lab05
 	* silences signals during quash execution for safety
-	*
 	* @param signal integer
  */
 void mask_signal(int signal)
@@ -109,16 +98,16 @@ void unmask_signal(int signal)
 	*/
 void print_cmd_tokens(m_command* cmd)
 {
-	int k = 0;
+	int t = 0;
 	puts("Struct Token String\n");
-	for ( ;k <= cmd->toklen; k++)
-		printf("%d: %s\n", k, cmd->m_c_tok[k]);
+	for ( ;t <= cmd->toklen; t++)
+		printf("%d: %s\n", t, cmd->m_c_tok[t]);
 }
 
 /**
 	* Print Current Working Directory before shell commands
 	*/
-void print_init_dir()
+void curr_dir_print()
 {
 	char cwd[MAX_COMMAND_LENGTH];	//cwd arg - print before each shell command
 	if ( getcwd(cwd, sizeof(cwd)) && !running_from_file )
@@ -141,7 +130,7 @@ void job_handler(int signal, siginfo_t* sig, void* slot) {
 	}
 	if ( i < num_jobs ) {
 		printf("\n[%d] %d finished %s\n", all_jobs[i].jid, p, all_jobs[i].cmdstr);
-		all_jobs[i].status = true;
+		all_jobs[i].running = true;
 		free(all_jobs[i].cmdstr);
 	}
 }
@@ -292,6 +281,25 @@ bool get_command(m_command* cmd, FILE* in) {
 		return false;
 }
 
+/**
+	*
+	* @param original string
+	* @param beginning of substring
+	* @param end of substring
+	* @return substring
+	*/
+char* substring(char* str, int begin, int end)
+{
+	char* substr = malloc(strlen(str));
+	int i = 0;
+	int j = 0;
+	for(i = begin; i < end; i++,j++)
+	{
+		memcpy(&substr[j],&str[i],sizeof(str[i]));
+	}
+	return substr;
+}
+
 /**************************************************************************
  * Shell Fuctionality
  **************************************************************************/
@@ -330,6 +338,8 @@ void echo(m_command* cmd)
 			puts(getenv("HOME"));
 		else if ( !strcmp(cmd->m_c_tok[1], "$PATH") )
 			puts(getenv("PATH"));
+		else if ( strstr(cmd->m_c_tok[1], "$") != NULL )
+			puts(getenv(substring(cmd->m_c_tok[1],1,strlen(cmd->m_c_tok[1]))));
 		else
 			puts(cmd->m_c_tok[1]);
 	}
@@ -352,7 +362,7 @@ void jobs(m_command* cmd) {
 	int i;
 
 	for ( i = 0; i < num_jobs; i++ ) {
-		if ( kill(all_jobs[i].pid, 0) == 0 && !all_jobs[i].status ) {
+		if ( kill(all_jobs[i].pid, 0) == 0 && !all_jobs[i].running ) {
 			printf("[%d] %d %s \n", all_jobs[i].jid, all_jobs[i].pid, all_jobs[i].cmdstr);
 		}
 	}
@@ -384,10 +394,10 @@ void set(m_command* cmd) {
 		////////////////////////////////////////////////////////////////////////////////
 		// Set the environment variable
 		////////////////////////////////////////////////////////////////////////////////
-		else if ( !strcmp(env, "PATH") || !strcmp(env, "HOME") )
+		else //if ( !strcmp(env, "PATH") || !strcmp(env, "HOME") )
 			setenv(env, dir, 1);
-		else
-			printf("set: available only for PATH or HOME environment variables\n");
+		//else
+			//printf("set: available only for PATH or HOME environment variables\n");
 	}
 }
 
@@ -461,7 +471,7 @@ void quash_run(m_command* cmd, char** envp) {
 		command_logic(cmd, envp);
 
 	if ( m_running )
-		print_init_dir();
+		curr_dir_print();
 }
 
 /**
@@ -562,7 +572,7 @@ int exec_basic_command(m_command* cmd, char* envp[])
 	}
 
 	////////////////////////////////////////////////////////////////////////////////
-	// Child
+	// Child process
 	////////////////////////////////////////////////////////////////////////////////
 	else
 	{
@@ -702,7 +712,7 @@ int exec_backg_command(m_command* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	struct sigaction action;
 	action.sa_sigaction = *job_handler;
-	action.sa_flags = SA_RESTART | SA_SIGINFO;
+	action.sa_flags = SA_SIGINFO | SA_RESTART ;
 	if ( sigaction(SIGCHLD, &action, NULL) < 0 )
 		fprintf(stderr, "Background signal handler error: ERRNO\"%d\"\n", errno);
 	sigprocmask(SIG_BLOCK, &sigmask_1, &sigmask_2);
@@ -726,15 +736,15 @@ int exec_backg_command(m_command* cmd, char* envp[])
 		//Create new job process struct
 
 		struct m_job create_job;
-		create_job.cmdstr = (char*) malloc(MAX_COMMAND_TITLE);
+		create_job.cmdstr = (char*) malloc(M_COMMAND_NAME);
 		strcpy(create_job.cmdstr, cmd->m_c_tok[0]);
-		create_job.status = false;
+		create_job.running = false;
 		create_job.pid = p;
 		create_job.jid = num_jobs;
 
-		////////////////////////////////////////////////////////////////////////////////
-		// Augment Global all_jobs struct
-		////////////////////////////////////////////////////////////////////////////////
+
+		// -- Background job scruct --
+
 		printf("[%d] %d running in background\n", num_jobs, p);
 		all_jobs[num_jobs] = create_job;
 		num_jobs++;
@@ -757,9 +767,9 @@ int exec_backg_command(m_command* cmd, char* envp[])
 		////////////////////////////////////////////////////////////////////////////////
 		char temp_file[MAX_COMMAND_LENGTH];
 		char cpid [MAX_COMMAND_ARGLEN];
-		int ipid = getpid();
+		int child_pid = getpid();
 
-		snprintf(cpid, MAX_COMMAND_ARGLEN,"%d",ipid);
+		snprintf(cpid, MAX_COMMAND_ARGLEN,"%d",child_pid);
 		strcpy(temp_file, cpid);
 		strcat(temp_file, "-temp_file_output.out");
 
@@ -806,7 +816,7 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Tokenize Piped Command into pieces
 	////////////////////////////////////////////////////////////////////////////////
-	int i = 0, j = 0, k = 0, num_cmds;
+	int i = 0, j = 0, k = 0, cmd_numbers;
 	m_command* cmds = malloc(MAX_COMMAND_ARGLEN * sizeof *cmds);
 	cmds[0].m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 
@@ -820,7 +830,7 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 			k = 0;
 		}
 		else {
-			cmds[j].m_c_tok[k] = malloc( sizeof(char) * MAX_COMMAND_TITLE );
+			cmds[j].m_c_tok[k] = malloc( sizeof(char) * M_COMMAND_NAME );
 			strcpy(cmds[j].m_c_tok[k], cmd->m_c_tok[i]);
 			//debug printf("cmds[%d]->tok[%d] = %s\n", j, k, cmds[j].tok[k]);
 			k++;
@@ -828,10 +838,10 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 	}
 	cmds[j].m_c_tok[k] = NULL;
 	cmds[j].toklen = k;
-	num_cmds = j;
+	cmd_numbers = j;
 
 //debug
-/*	for (i = 0; i <= num_cmds; i ++) {
+/*	for (i = 0; i <= cmd_numbers; i ++) {
 		for (j = 0; j <= cmds[i].toklen; j++) {
 			printf("cmds[%d].tok[%d] = %s\n", i, j, cmds[i].tok[j]);
 		}
@@ -844,7 +854,7 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Create and link pipes
 	////////////////////////////////////////////////////////////////////////////////
-	for ( i = 0; i < num_cmds - 1; ++i ) {
+	for ( i = 0; i < cmd_numbers - 1; ++i ) {
 		if ( pipe(file_desc) < 0 ) {
 			fprintf(stderr, "\nError in pipe creation. ERRNO:%d\n", errno);
 			return EXIT_FAILURE;
@@ -869,10 +879,6 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 	return EXIT_SUCCESS;
 }
 
-/**************************************************************************
- * MAIN
- **************************************************************************/
-
 /**
 	* Quash entry point
 	*
@@ -889,25 +895,27 @@ int main(int argc, char** argv, char** envp) {
 	sigemptyset(&sigmask_1);
 	sigaddset(&sigmask_1, SIGCHLD);
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Allow commmand redirection if input comes from FILE
-	////////////////////////////////////////////////////////////////////////////////
+
+	// Allow for commmand redirection if input comes from FILE
+
 	if ( !isatty( (fileno(stdin) ) ) )
 	{
 		exec_from_file(argv, argc, envp);
 		return EXIT_SUCCESS;
 	}
 
-
 	// create command object
 
 	m_command cmd;
 
-	start();
-	puts("Welcome to QUASH!\nType \"quit\" or \"exit\" to leave this shell");
-	print_init_dir();
+	start_quash();
 
-	while ( is_running() && get_command(&cmd, stdin) ) {
+	puts("Starting Quash ... Hello!\nType \"quit\" or \"exit\" to leave this shell");
+
+	curr_dir_print();
+
+	while ( get_command(&cmd, stdin) && is_running() )
+	{
 		quash_run(&cmd, envp);
 	}
 

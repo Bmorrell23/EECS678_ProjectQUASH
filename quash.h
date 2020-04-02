@@ -11,7 +11,6 @@
 
 #define _GNU_SOURCE
 
-
 #ifndef QUASH_H
 #define QUASH_H
 
@@ -26,12 +25,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 /**
 	* Specify the maximum number of characters accepted by the command string
 	*/
-#define MAX_COMMAND_TITLE (128)
+#define M_COMMAND_NAME (128)
 /**
 	* Specify the maximum number of arguments in a command
 	*/
@@ -45,7 +42,7 @@
 /**
 	* Specify the maximum number of background jobs
 	*/
-#define MAX_NUM_JOBS (100)
+#define MAX_NUM_JOBS (50)
 
 /**
 	* Command structure to hold information regarding given
@@ -63,6 +60,18 @@ typedef struct m_command {
 } m_command;
 
 
+//	Job struct for handeling a running process
+
+typedef struct m_job {
+	char* cmdstr;							///< The command issued for this process
+	bool running;							///< Status for this process (running or not)
+	int pid;								///< Process ID #
+	int jid;								///< Job ID #
+} m_job;
+
+
+
+
 	//Signal Masking variables
 
 sigset_t sigmask_1;
@@ -70,18 +79,13 @@ sigset_t sigmask_1;
 sigset_t sigmask_2;
 
 
-	//	Job struct for handeling a running process
-
-typedef struct m_job {
-	char* cmdstr;							///< The command issued for this process
-	bool status;							///< Status for this process (running or not)
-	int pid;								///< Process ID #
-	int jid;								///< Job ID #
-} m_job;
 
 /**************************************************************************
  * Helper Functions
  **************************************************************************/
+
+char* substring(char* str, int begin, int end);
+
 
 /**
 	* Query if quash should accept more input or not.
@@ -91,7 +95,7 @@ typedef struct m_job {
 bool is_running();
 
 /**
-	* Causes the execution loop to end.
+	* suspends execution loop
 	*/
 void suspend();
 
@@ -126,7 +130,7 @@ void print_cmd_tokens(m_command* cmd);
 /**
 	* Print Current Working Directory before shell commands
 	*/
-void print_init();
+void curr_dir_print();
 
 /**
 	* Handles exiting signal from background processes
@@ -155,6 +159,7 @@ int kill_proc(m_command* cmd);
 	* @return RETURN_CODE
 	*/
 int iterative_fork_helper (m_command* cmd, int fsi, int fso, char* envp[]);
+
 
 /**************************************************************************
  * String Manipulation Functions
@@ -191,7 +196,7 @@ void cd(m_command* cmd);
 void echo(m_command* cmd);
 
 /**
-	* Displays all currently running jobs
+	* Display running jobs
 	*/
 void jobs(m_command* cmd);
 
@@ -219,7 +224,7 @@ void set(m_command* cmd);
 void exec_from_file(char** argv, int argc, char* envp[]);
 
 /**************************************************************************
- * Execution Functions
+ * Running Quash Functions
  **************************************************************************/
 
 /**
@@ -231,15 +236,6 @@ void exec_from_file(char** argv, int argc, char* envp[]);
 void quash_run(m_command* cmd, char** envp);
 
 /**
-	* Command logic struct
-	*
-	* @param cmd command struct
-	* @param envp environment variables
-	* @return RETURN_CODE
- */
-int command_logic(m_command* cmd, char* envp[]);
-
-/**
 	* Executes any command that can be handled with execvpe (ergo free of |, <, >, or &)
 	*
 	* @param cmd command struct
@@ -247,6 +243,16 @@ int command_logic(m_command* cmd, char* envp[]);
 	* @return RETURN_CODE
  */
 int exec_basic_command(m_command* cmd, char* envp[]);
+
+/**
+	* Command logic
+	*
+	* @param cmd command struct
+	* @param envp environment variables
+	* @return RETURN_CODE
+ */
+int command_logic(m_command* cmd, char* envp[]);
+
 
 /**
 	* Executes any command with an I/O redirection present
