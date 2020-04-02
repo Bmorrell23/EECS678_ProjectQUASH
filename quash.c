@@ -1,8 +1,8 @@
 /**
  * @file quash.c
  *
- * Blake Morrell
- * Matthew Felsen
+ * Blake Morrell & Matthew Felsen
+ *
  * EECS 678 Spring 20'
  *
  * Project 1 Quash's main file
@@ -11,24 +11,22 @@
 /**************************************************************************
  * Included Files
  **************************************************************************/
-#include "quash.h"	// Putting this above the other includes allows us to ensure
-					// this file's headder's #include statements are self
-					// contained.
+#include "quash.h"
+
 
 /**************************************************************************
  * Private Variables
  **************************************************************************/
+
 /**
- * Keep track of whether Quash should request another command or not.
+ * Request Quash commands or suspend
  */
-// NOTE: "static" causes the "running" variable to only be declared in this
-// compilation unit (this file and all files that include it). This is similar
-// to private in other languages.
-static bool running;
 
 static bool running_from_file;
 
-static struct job all_jobs[MAX_NUM_JOBS];
+static bool m_running;
+
+static struct m_job all_jobs[MAX_NUM_JOBS];
 
 static int num_jobs = 0;
 
@@ -38,14 +36,16 @@ static int num_jobs = 0;
 /**
  * Start the main loop by setting the running flag to true
 	*/
-static void start() {
-	running = true;
+static void start()
+{
+	m_running = true;
 }
 
 /**
 	* Flag file commands supply
 	*/
-static void start_from_file() {
+static void start_from_file()
+{
 	running_from_file = true;
 }
 
@@ -56,34 +56,39 @@ static void start_from_file() {
 /**
 	* Query if quash should accept more input or not.
 	*
-	* @return True if Quash should accept more input and false otherwise
+	* @return True if Quash should accept more input, otherwise false
 	*/
-bool is_running() {
-	return running || running_from_file;
+bool is_running()
+{
+	return m_running || running_from_file;
 }
 
 /**
 	* Causes the execution loop to end.
 	*/
-void terminate() {
-	running = false;
+void suspend()
+{
+	m_running = false;
 }
 
 /**
-	* Terminates quash file execution
+	* suspends quash file execution
 	*/
-void terminate_from_file() {
+void suspend_from_file()
+{
 	running_from_file = false;
 }
 
 /**
 	* Mask Signal
 	*
+	*	From Signals Lab05
 	* silences signals during quash execution for safety
 	*
 	* @param signal integer
  */
-void mask_signal(int signal) {
+void mask_signal(int signal)
+{
 	printf("\n");
 }
 
@@ -92,7 +97,8 @@ void mask_signal(int signal) {
 	*
 	* @param signal integer
  */
-void unmask_signal(int signal) {
+void unmask_signal(int signal)
+{
 	exit(0);
 }
 
@@ -101,17 +107,19 @@ void unmask_signal(int signal) {
 	*
 	* @param cmd command struct
 	*/
-void print_cmd_tokens(command_t* cmd) {
-	int i = 0;
+void print_cmd_tokens(m_command* cmd)
+{
+	int k = 0;
 	puts("Struct Token String\n");
-	for ( ;i <= cmd->toklen; i++)
-		printf("%d: %s\n", i, cmd->tok[i]);
+	for ( ;k <= cmd->toklen; k++)
+		printf("%d: %s\n", k, cmd->m_c_tok[k]);
 }
 
 /**
 	* Print Current Working Directory before shell commands
 	*/
-void print_init() {
+void print_init_dir()
+{
 	char cwd[MAX_COMMAND_LENGTH];	//cwd arg - print before each shell command
 	if ( getcwd(cwd, sizeof(cwd)) && !running_from_file )
 		printf("\n[Quash: %s] q$ ", cwd);
@@ -142,23 +150,23 @@ void job_handler(int signal, siginfo_t* sig, void* slot) {
 	* Kill Command from jobs listing
 	*
 	* @param cmd command struct
-	* @return: RETURN_CODE
+	* @return: Exit status
 */
-int kill_proc(command_t* cmd) {
+int kill_proc(m_command* cmd) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Kill requires 3 arguments
 	////////////////////////////////////////////////////////////////////////////////
 	if ( cmd->toklen == 3 ) {
-		int ksignal;
-		sscanf(cmd->tok[1], "%d", &ksignal);
+		int k_sig;
+		sscanf(cmd->m_c_tok[1], "%d", &k_sig);
 		int num;
-		sscanf(cmd->tok[2], "%d", &num);
+		sscanf(cmd->m_c_tok[2], "%d", &num);
 
 		////////////////////////////////////////////////////////////////////////////////
 		// Kill provided Job
 		////////////////////////////////////////////////////////////////////////////////
 		if ( all_jobs[num].pid )
-			kill(all_jobs[num].pid,ksignal);
+			kill(all_jobs[num].pid, k_sig);
 		else {
 			printf("Error: process does not exist \n");
 			return EXIT_FAILURE;
@@ -167,7 +175,8 @@ int kill_proc(command_t* cmd) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Otherwise error status
 	////////////////////////////////////////////////////////////////////////////////
-	else {
+	else
+	{
 		puts("kill: Incorrect syntax. provide 2 arguments:\n");
 		return EXIT_FAILURE;
 	}
@@ -183,14 +192,14 @@ int kill_proc(command_t* cmd) {
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int iterative_fork_helper (command_t* cmd, int fsi, int fso, char* envp[])
+int iterative_fork_helper (m_command* cmd, int fsi, int fso, char* envp[])
 {
 	pid_t p;
 
 	if ( !(p = fork ()) ) {
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		// Redirect for STDOUT
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		if ( fso != 1 ) {
 			if ( dup2(fso, STDOUT_FILENO) < 0 ) {
 				fprintf(stderr, "\nError redirecting STDOUT. ERRNO\"%d\"\n", errno);
@@ -198,9 +207,9 @@ int iterative_fork_helper (command_t* cmd, int fsi, int fso, char* envp[])
 			}
 			close (fso);
 		}
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		// Redirect for STDIN
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		if ( fsi != 0 ) {
 			if ( dup2(fsi, STDIN_FILENO ) < 0) {
 				fprintf(stderr, "\nError redirecting STDIN. ERRNO\"%d\"\n", errno);
@@ -208,15 +217,15 @@ int iterative_fork_helper (command_t* cmd, int fsi, int fso, char* envp[])
 			}
 			close (fsi);
 		}
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		// Execute Command
-		////////////////////////////////////////////////////////////////////////////////
-		if ( execvpe(cmd->tok[0], cmd->tok, envp) < 0	&& errno == 2 ) {
-			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->tok[0]);
+		//------------------------------------------------------------------------------
+		if ( execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0	&& errno == 2 ) {
+			fprintf(stderr, "Command: \"%s\" cannot be found.\n", cmd->m_c_tok[0]);
 			exit(EXIT_FAILURE);
 		}
 		else {
-			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->tok[0], errno);
+			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
 		return EXIT_SUCCESS;
@@ -235,7 +244,7 @@ int iterative_fork_helper (command_t* cmd, int fsi, int fso, char* envp[])
 	* @param in instream
 	* @return bool successful parse
 	*/
-bool get_command(command_t* cmd, FILE* in) {
+bool get_command(m_command* cmd, FILE* in) {
 	if ( fgets(cmd->cmdstr, MAX_COMMAND_LENGTH, in) != NULL ) {
 		size_t len = strlen(cmd->cmdstr);
 		char last_char = cmd->cmdstr[len - 1];
@@ -248,16 +257,16 @@ bool get_command(command_t* cmd, FILE* in) {
 		else
 			cmd->cmdlen = len;
 
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		// Empty Command return true - MUST BE HANDLED
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		if ( !(int)cmd->cmdlen )
 			return true;
 
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		// Tokenize command arguments
-		////////////////////////////////////////////////////////////////////////////////
-		cmd->tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
+		//------------------------------------------------------------------------------
+		cmd->m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 		cmd->toklen = 0;
 
 		char* token = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
@@ -266,16 +275,16 @@ bool get_command(command_t* cmd, FILE* in) {
 		while ( token != NULL )
 		{
 			//debug print - printf ("%d: %s\n", (int)cmd->toklen, token);
-			cmd->tok[cmd->toklen] = token;
+			cmd->m_c_tok[cmd->toklen] = token;
 			cmd->toklen++;
 			token = strtok(NULL, " ");
 		}
 
 		free(token);
-		////////////////////////////////////////////////////////////////////////////////
+		//------------------------------------------------------------------------------
 		// Remove NULL token from end
-		////////////////////////////////////////////////////////////////////////////////
-		cmd->tok[cmd->toklen] = '\0';
+		//------------------------------------------------------------------------------
+		cmd->m_c_tok[cmd->toklen] = '\0';
 
 		return true;
 	}
@@ -294,7 +303,7 @@ bool get_command(command_t* cmd, FILE* in) {
 	* @return void
 	* Note: chdir will make new dir's if they don't exist
 	*/
-void cd(command_t* cmd)
+void cd(m_command* cmd)
 {
 	if ( cmd->toklen < 2 ) {
 		if ( chdir(getenv("HOME")) )
@@ -303,8 +312,8 @@ void cd(command_t* cmd)
 	else if ( cmd->toklen > 2 )
 		puts("Too many arguments");
 	else {
-		if ( chdir(cmd->tok[1]) )
-			printf("cd: %s: No such file or directory\n", cmd->tok[1]);
+		if ( chdir(cmd->m_c_tok[1]) )
+			printf("cd: %s: No such file or directory\n", cmd->m_c_tok[1]);
 	}
 }
 
@@ -314,15 +323,15 @@ void cd(command_t* cmd)
 	* @param cmd command struct
 	* @return void
 	*/
-void echo(command_t* cmd)
+void echo(m_command* cmd)
 {
 	if ( cmd->toklen == 2 ) {
-		if ( !strcmp(cmd->tok[1], "$HOME") )
+		if ( !strcmp(cmd->m_c_tok[1], "$HOME") )
 			puts(getenv("HOME"));
-		else if ( !strcmp(cmd->tok[1], "$PATH") )
+		else if ( !strcmp(cmd->m_c_tok[1], "$PATH") )
 			puts(getenv("PATH"));
 		else
-			puts(cmd->tok[1]);
+			puts(cmd->m_c_tok[1]);
 	}
 	else if ( cmd->toklen == 1 ) {
 		puts(getenv("HOME"));
@@ -330,7 +339,7 @@ void echo(command_t* cmd)
 	else{
 		int i = 1;
 		for ( ; i < cmd->toklen; i++ )
-			printf("%s ", cmd->tok[i]);
+			printf("%s ", cmd->m_c_tok[i]);
 		puts("");
 	}
 }
@@ -339,7 +348,7 @@ void echo(command_t* cmd)
 	* Displays all currently running jobs
 	* @return void
 	*/
-void jobs(command_t* cmd) {
+void jobs(m_command* cmd) {
 	int i;
 
 	for ( i = 0; i < num_jobs; i++ ) {
@@ -350,7 +359,7 @@ void jobs(command_t* cmd) {
 }
 
 /**
-	* Set Implementation
+	* Command "Set" Implementation
 	*
 	* Assigns the specified environment variable (HOME or PATH),
 	* or displays an error for user mistakes.
@@ -358,13 +367,13 @@ void jobs(command_t* cmd) {
 	* @param cmd command struct
 	* @return void
 	*/
-void set(command_t* cmd) {
-	if ( cmd->tok[1] == NULL )
-		printf("set: No command given\n");
+void set(m_command* cmd) {
+	if ( cmd->m_c_tok[1] == NULL )
+		printf("set error: No command given\n");
 	else {
 		// Get the environment variable and directory
 		// (Delimited by '=')
-		char* env = strtok(cmd->tok[1], "=");
+		char* env = strtok(cmd->m_c_tok[1], "=");
 		char* dir = strtok(NULL, "=");
 
 		if ( env == NULL || dir == NULL ) {
@@ -398,7 +407,7 @@ void exec_from_file(char** argv, int argc, char* envp[]) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Args
 	////////////////////////////////////////////////////////////////////////////////
-	command_t cmd;
+	m_command cmd;
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Redirect Quash Standard Input
@@ -409,13 +418,13 @@ void exec_from_file(char** argv, int argc, char* envp[]) {
 	// Command Loop
 	////////////////////////////////////////////////////////////////////////////////
 	while (get_command(&cmd, stdin)) {
-		run_quash(&cmd, envp);
+		quash_run(&cmd, envp);
 	}
 
 	////////////////////////////////////////////////////////////////////////////////
-	// Terminate File execution and start normal program execution
+	// suspend File execution and start normal program execution
 	////////////////////////////////////////////////////////////////////////////////
-	terminate_from_file();
+	suspend_from_file();
 }
 
 /**************************************************************************
@@ -428,41 +437,41 @@ void exec_from_file(char** argv, int argc, char* envp[]) {
 	* @param cmd command struct
 	* @param envp environment variables
 	*/
-void run_quash(command_t* cmd, char** envp) {
+void quash_run(m_command* cmd, char** envp) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Command Decision Structure
 	////////////////////////////////////////////////////////////////////////////////
 	if ( !strcmp(cmd->cmdstr, "exit") || !strcmp(cmd->cmdstr, "quit") )
-		terminate(); // Exit Quash
+		suspend(); // Exit Quash
 	////////////////////////////////////////////////////////////////////////////////
 	// Do nothing -- just print the cwd to display we're still in the shell.
 	////////////////////////////////////////////////////////////////////////////////
 	else if ( !cmd->cmdlen ) {}
-	else if ( strcmp(cmd->tok[0], "cd") == 0 )
+	else if ( strcmp(cmd->m_c_tok[0], "cd") == 0 )
 		cd(cmd);
-	else if ( strcmp(cmd->tok[0], "echo") == 0 )
+	else if ( strcmp(cmd->m_c_tok[0], "echo") == 0 )
 		echo(cmd);
-	else if ( !strcmp(cmd->tok[0], "jobs") )
+	else if ( !strcmp(cmd->m_c_tok[0], "jobs") )
 		jobs(cmd);
-	else if ( !strcmp(cmd->tok[0], "kill") )
+	else if ( !strcmp(cmd->m_c_tok[0], "kill") )
 		kill_proc(cmd);
-	else if ( !strcmp(cmd->tok[0], "set") )
+	else if ( !strcmp(cmd->m_c_tok[0], "set") )
 		set(cmd);
 	else
-		exec_command(cmd, envp);
+		command_logic(cmd, envp);
 
-	if ( running )
-		print_init();
+	if ( m_running )
+		print_init_dir();
 }
 
 /**
-	* Command Decision Structure
+	* Command Logic Structure
 	*
 	* @param cmd command struct
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_command(command_t* cmd, char* envp[])
+int command_logic(m_command* cmd, char* envp[])
 {
 	////////////////////////////////////////////////////////////////////////////////
 	// Command Flag Initializations
@@ -477,13 +486,13 @@ int exec_command(command_t* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	int i = 1;
 	for (; i < cmd->toklen; i++) {
-		if ( !strcmp(cmd->tok[i], "&") )
+		if ( !strcmp(cmd->m_c_tok[i], "&") )
 			b_bool = true;
-		else if ( !strcmp(cmd->tok[i], "<") )
+		else if ( !strcmp(cmd->m_c_tok[i], "<") )
 			i_bool = true;
-		else if ( !strcmp(cmd->tok[i], ">") )
+		else if ( !strcmp(cmd->m_c_tok[i], ">") )
 			o_bool = true;
-		else if ( !strcmp(cmd->tok[i], "|") )
+		else if ( !strcmp(cmd->m_c_tok[i], "|") )
 			p_bool = true;
 	}
 
@@ -492,8 +501,9 @@ int exec_command(command_t* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	int RETURN_CODE = 0;
 	// we have access to numArgs here and this will be portable
-	if ( b_bool ) {
-		cmd->tok[cmd->toklen - 1] = '\0'; // remove & token
+	if ( b_bool )
+	{
+		cmd->m_c_tok[cmd->toklen - 1] = '\0'; // remove & token
 		cmd->toklen--;
 		RETURN_CODE = exec_backg_command(cmd, envp);
 	}
@@ -515,20 +525,21 @@ int exec_command(command_t* cmd, char* envp[])
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_basic_command(command_t* cmd, char* envp[])
+int exec_basic_command(m_command* cmd, char* envp[])
 {
 	////////////////////////////////////////////////////////////////////////////////
 	// Mask Inturrept Signals and Initialize Variables
 	////////////////////////////////////////////////////////////////////////////////
 	pid_t p;
-	int wait_status;
+	int m_wait;
 	signal(SIGINT, mask_signal);
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Fork And Verify Process
 	////////////////////////////////////////////////////////////////////////////////
 	p = fork();
-	if ( p < 0 ) {
+	if ( p < 0 )
+	{
 		fprintf(stderr, "Error forking basic command. Error:%d\n", errno);
 		exit(EXIT_FAILURE);
 	}
@@ -536,13 +547,15 @@ int exec_basic_command(command_t* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Parent
 	////////////////////////////////////////////////////////////////////////////////
-	if ( p != 0 ) {
-		if ( waitpid(p, &wait_status, 0) < 0 ) {
+	if ( p != 0 )
+	{
+		if ( waitpid(p, &m_wait, 0) < 0 )
+		{
 			signal(SIGINT, unmask_signal);
 			fprintf(stderr, "Error with basic command's child	%d. ERRNO\"%d\"\n", p, errno);
 			return EXIT_FAILURE;
 		}
-		if ( WIFEXITED(wait_status) && WEXITSTATUS(wait_status) == EXIT_FAILURE )
+		if ( WIFEXITED(m_wait) && WEXITSTATUS(m_wait) == EXIT_FAILURE )
 			return EXIT_FAILURE;
 		signal(SIGINT, unmask_signal);
 		return EXIT_SUCCESS;
@@ -551,13 +564,16 @@ int exec_basic_command(command_t* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Child
 	////////////////////////////////////////////////////////////////////////////////
-	else {
-		if ( execvpe(cmd->tok[0], cmd->tok, envp) < 0	&& errno == 2 ) {
-			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->tok[0]);
+	else
+	{
+		if ( execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0	&& errno == 2 )
+		{
+			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->m_c_tok[0]);
 			exit(EXIT_FAILURE);
 		}
-		else {
-			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->tok[0], errno);
+		else
+		{
+			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
 		exit(EXIT_SUCCESS);
@@ -572,13 +588,13 @@ int exec_basic_command(command_t* cmd, char* envp[])
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_redir_command(command_t* cmd, bool io, char* envp[])
+int exec_redir_command(m_command* cmd, bool io, char* envp[])
 {
 	////////////////////////////////////////////////////////////////////////////////
 	// Mask Inturrept Signals and Initialize Variables
 	////////////////////////////////////////////////////////////////////////////////
 	pid_t p;
-	int wait_status;
+	int m_wait;
 	int file_desc;
 	signal(SIGINT, mask_signal);
 
@@ -586,7 +602,8 @@ int exec_redir_command(command_t* cmd, bool io, char* envp[])
 	// Fork And Verify Process
 	////////////////////////////////////////////////////////////////////////////////
 	p = fork();
-	if ( p < 0 ) {
+	if ( p < 0 )
+	{
 		fprintf(stderr, "Error forking redir command. ERRNO\"%d\"\n", errno);
 		exit(EXIT_FAILURE);
 	}
@@ -594,12 +611,14 @@ int exec_redir_command(command_t* cmd, bool io, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Parent
 	////////////////////////////////////////////////////////////////////////////////
-	if ( p != 0 ) {
-		if (waitpid(p, &wait_status, 0) == -1) {
+	if ( p != 0 )
+	{
+		if (waitpid(p, &m_wait, 0) == -1)
+		{
 			fprintf(stderr, "Error with redir command's child	%d. ERRNO\"%d\"\n", p, errno);
 			return EXIT_FAILURE;
 		}
-		if ( WIFEXITED(wait_status) && WEXITSTATUS(wait_status) == EXIT_FAILURE )
+		if ( WIFEXITED(m_wait) && WEXITSTATUS(m_wait) == EXIT_FAILURE )
 			return EXIT_FAILURE;
 
 		signal(SIGINT, unmask_signal);
@@ -609,32 +628,37 @@ int exec_redir_command(command_t* cmd, bool io, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Child
 	////////////////////////////////////////////////////////////////////////////////
-	else {
+	else
+	{
 		////////////////////////////////////////////////////////////////////////////////
 		// Initialize and Verify File Descriptor
 		////////////////////////////////////////////////////////////////////////////////
 		if ( io )
-			file_desc = open(cmd->tok[cmd->toklen - 1], O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+			file_desc = open(cmd->m_c_tok[cmd->toklen - 1], O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		else
-			file_desc = open(cmd->tok[cmd->toklen - 1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+			file_desc = open(cmd->m_c_tok[cmd->toklen - 1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		if ( file_desc < 0 ) {
-			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", cmd->tok[cmd->toklen - 1], errno);
+			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->toklen - 1], errno);
 			exit(EXIT_FAILURE);
 		}
 
 		////////////////////////////////////////////////////////////////////////////////
 		// Redirect I/O Streams
 		////////////////////////////////////////////////////////////////////////////////
-		if ( io ) {
-			if (dup2(file_desc, STDIN_FILENO) < 0) {
-				fprintf(stderr, "\nError redirecting STDIN to %s. ERRNO\"%d\"\n", cmd->tok[cmd->toklen - 1], errno);
+		if ( io )
+		{
+			if (dup2(file_desc, STDIN_FILENO) < 0)
+			{
+				fprintf(stderr, "\nError redirecting STDIN to %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->toklen - 1], errno);
 				exit(EXIT_FAILURE);
 			}
 		}
-		else {
-			if (dup2(file_desc, STDOUT_FILENO) < 0) {
-				fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", cmd->tok[cmd->toklen - 1], errno);
+		else
+		{
+			if (dup2(file_desc, STDOUT_FILENO) < 0)
+			{
+				fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->toklen - 1], errno);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -643,16 +667,16 @@ int exec_redir_command(command_t* cmd, bool io, char* envp[])
 		// Execute Command - remove last two redirection arguments
 		////////////////////////////////////////////////////////////////////////////////
 		close(file_desc);
-		cmd->tok[cmd->toklen - 1] = NULL;
-		cmd->tok[cmd->toklen - 2] = NULL;
+		cmd->m_c_tok[cmd->toklen - 1] = NULL;
+		cmd->m_c_tok[cmd->toklen - 2] = NULL;
 		cmd->toklen = cmd->toklen - 2;
 
-		if ( execvpe(cmd->tok[0], cmd->tok, envp) < 0	&& errno == 2 ) {
-			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->tok[0]);
+		if ( execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0	&& errno == 2 ) {
+			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->m_c_tok[0]);
 			exit(EXIT_FAILURE);
 		}
 		else {
-			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->tok[0], errno);
+			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
 		signal(SIGINT, unmask_signal);
@@ -667,10 +691,10 @@ int exec_redir_command(command_t* cmd, bool io, char* envp[])
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_backg_command(command_t* cmd, char* envp[])
+int exec_backg_command(m_command* cmd, char* envp[])
 {
 	pid_t p;
-	int wait_status;
+	int m_wait;
 	int file_desc;
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -678,30 +702,32 @@ int exec_backg_command(command_t* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	struct sigaction action;
 	action.sa_sigaction = *job_handler;
-	action.sa_flags = SA_SIGINFO | SA_RESTART;
+	action.sa_flags = SA_RESTART | SA_SIGINFO;
 	if ( sigaction(SIGCHLD, &action, NULL) < 0 )
-		fprintf(stderr, "Error background signal handler: ERRNO\"%d\"\n", errno);
+		fprintf(stderr, "Background signal handler error: ERRNO\"%d\"\n", errno);
 	sigprocmask(SIG_BLOCK, &sigmask_1, &sigmask_2);
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Fork And Verify Process
 	////////////////////////////////////////////////////////////////////////////////
 	p = fork();
-	if ( p < 0 ) {
-		fprintf(stderr, "\nError forking background command. ERRNO\"%d\"\n", errno);
+	if ( p < 0 )
+	{
+		fprintf(stderr, "\nEncounter error forking background command. ERRNO\"%d\"\n", errno);
 		exit(EXIT_FAILURE);
 	}
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Parent
 	////////////////////////////////////////////////////////////////////////////////
-	if ( p != 0 ) {
-		////////////////////////////////////////////////////////////////////////////////
-		// Populate new job struct
-		////////////////////////////////////////////////////////////////////////////////
-		struct job create_job;
+	if ( p != 0 )
+	{
+
+		//Create new job process struct
+
+		struct m_job create_job;
 		create_job.cmdstr = (char*) malloc(MAX_COMMAND_TITLE);
-		strcpy(create_job.cmdstr, cmd->tok[0]);
+		strcpy(create_job.cmdstr, cmd->m_c_tok[0]);
 		create_job.status = false;
 		create_job.pid = p;
 		create_job.jid = num_jobs;
@@ -713,18 +739,18 @@ int exec_backg_command(command_t* cmd, char* envp[])
 		all_jobs[num_jobs] = create_job;
 		num_jobs++;
 
-		////////////////////////////////////////////////////////////////////////////////
-		// Unmask Signals, and Wait for completion
-		////////////////////////////////////////////////////////////////////////////////
+
+		// Signal unmasking, wait for finish
+
 		sigprocmask(SIG_UNBLOCK, &sigmask_1, &sigmask_2);
-		while (waitpid(p, &wait_status, WNOHANG) > 0) {}
+		while (waitpid(p, &m_wait, WNOHANG) > 0) {}
 		return EXIT_SUCCESS;
 
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Child
-	////////////////////////////////////////////////////////////////////////////////
+
+	// child process after fork
+
 	else {
 		////////////////////////////////////////////////////////////////////////////////
 		// Map Child Process to different output
@@ -735,9 +761,9 @@ int exec_backg_command(command_t* cmd, char* envp[])
 
 		snprintf(cpid, MAX_COMMAND_ARGLEN,"%d",ipid);
 		strcpy(temp_file, cpid);
-		strcat(temp_file, "-temp_output.out");
+		strcat(temp_file, "-temp_file_output.out");
 
-		file_desc = open(temp_file, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+		file_desc = open(temp_file, O_TRUNC | O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		if ( file_desc < 0 ) {
 			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", temp_file, errno);
@@ -749,12 +775,13 @@ int exec_backg_command(command_t* cmd, char* envp[])
 			exit(EXIT_FAILURE);
 		}
 
-		if ( execvpe(cmd->tok[0], cmd->tok, envp) < 0	&& errno == 2 ) {
-			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->tok[0]);
+		if ( (execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0)	&& (errno == 2) )
+		{
+			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->m_c_tok[0]);
 			exit(EXIT_FAILURE);
 		}
 		else {
-			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->tok[0], errno);
+			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
 		signal(SIGINT, unmask_signal);
@@ -770,7 +797,7 @@ int exec_backg_command(command_t* cmd, char* envp[])
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_pipe_command(command_t* cmd, char* envp[]) {
+int exec_pipe_command(m_command* cmd, char* envp[]) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Mask Inturrept Signals
 	////////////////////////////////////////////////////////////////////////////////
@@ -780,26 +807,26 @@ int exec_pipe_command(command_t* cmd, char* envp[]) {
 	// Tokenize Piped Command into pieces
 	////////////////////////////////////////////////////////////////////////////////
 	int i = 0, j = 0, k = 0, num_cmds;
-	command_t* cmds = malloc(MAX_COMMAND_ARGLEN * sizeof *cmds);
-	cmds[0].tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
+	m_command* cmds = malloc(MAX_COMMAND_ARGLEN * sizeof *cmds);
+	cmds[0].m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 
 	for ( ; i < cmd->toklen; i++ ) {
-		if ( !strcmp(cmd->tok[i], "|") ) {
+		if ( !strcmp(cmd->m_c_tok[i], "|") ) {
 			//matches pipe
-			cmds[j].tok[k] = NULL;
+			cmds[j].m_c_tok[k] = NULL;
 			cmds[j].toklen = k;
 			j++;
-			cmds[j].tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
+			cmds[j].m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 			k = 0;
 		}
 		else {
-			cmds[j].tok[k] = malloc( sizeof(char) * MAX_COMMAND_TITLE );
-			strcpy(cmds[j].tok[k], cmd->tok[i]);
+			cmds[j].m_c_tok[k] = malloc( sizeof(char) * MAX_COMMAND_TITLE );
+			strcpy(cmds[j].m_c_tok[k], cmd->m_c_tok[i]);
 			//debug printf("cmds[%d]->tok[%d] = %s\n", j, k, cmds[j].tok[k]);
 			k++;
 		}
 	}
-	cmds[j].tok[k] = NULL;
+	cmds[j].m_c_tok[k] = NULL;
 	cmds[j].toklen = k;
 	num_cmds = j;
 
@@ -830,11 +857,12 @@ int exec_pipe_command(command_t* cmd, char* envp[]) {
 	if ( j != 0 )
 		dup2(j, STDIN_FILENO);
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Execute final command
-	////////////////////////////////////////////////////////////////////////////////
-	if ( execvpe(cmds[i].tok[0], cmds[i].tok, envp) < 0 ) {
-		fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->tok[0], errno);
+
+	// Complete final command
+
+	if ( execvpe(cmds[i].m_c_tok[0], cmds[i].m_c_tok, envp) < 0 )
+	{
+		fprintf(stderr, "Error completing final command: %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 		exit(EXIT_FAILURE);
 	}
 	signal(SIGINT, unmask_signal);
@@ -855,34 +883,32 @@ int exec_pipe_command(command_t* cmd, char* envp[]) {
 	*/
 int main(int argc, char** argv, char** envp) {
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Init Signal Masking
-	////////////////////////////////////////////////////////////////////////////////
+
+	// Signal Masking SIGINT
+
 	sigemptyset(&sigmask_1);
 	sigaddset(&sigmask_1, SIGCHLD);
 
 	////////////////////////////////////////////////////////////////////////////////
-	// Input stems from FILE - Redirects command interpretation structure
+	// Allow commmand redirection if input comes from FILE
 	////////////////////////////////////////////////////////////////////////////////
-	if ( !isatty( (fileno(stdin) ) ) ) {
+	if ( !isatty( (fileno(stdin) ) ) )
+	{
 		exec_from_file(argv, argc, envp);
 		return EXIT_SUCCESS;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Args
-	////////////////////////////////////////////////////////////////////////////////
-	command_t cmd;										//< Command holder argument
+
+	// create command object
+
+	m_command cmd;
 
 	start();
-	puts("Welcome to Quash!\nType \"exit\" or \"quit\" to leave this shell");
-	print_init();
+	puts("Welcome to QUASH!\nType \"quit\" or \"exit\" to leave this shell");
+	print_init_dir();
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Main Execution Loop
-	////////////////////////////////////////////////////////////////////////////////
 	while ( is_running() && get_command(&cmd, stdin) ) {
-		run_quash(&cmd, envp);
+		quash_run(&cmd, envp);
 	}
 
 	return EXIT_SUCCESS;
