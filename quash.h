@@ -25,45 +25,31 @@
 #include <stdlib.h>
 #include <string.h>
 
-/**
-	* Specify the maximum number of characters accepted by the command string
-	*/
-#define M_COMMAND_NAME (128)
-/**
-	* Specify the maximum number of arguments in a command
-	*/
-
-#define MAX_COMMAND_LENGTH (1024)
-
-#define MAX_COMMAND_ARGLEN (32)
-/**
-	* Specify the maximum number of characters accepted by the command string
-	*/
-/**
-	* Specify the maximum number of background jobs
-	*/
-#define MAX_NUM_JOBS (50)
 
 /**
 	* Command structure to hold information regarding given
 	*
 	*/
 typedef struct m_command {
-	char** m_c_tok;							///< tokenized command array
-	char cmdstr[MAX_COMMAND_LENGTH];	///< character buffer to store the
-										///< command string. You may want
-										///< to modify this to accept
-										///< arbitrarily long strings for
-										///< robustness.
-	size_t comm_siz;						///< length of the cmdstr character buffer
-	size_t symb_size;						///< tokenized command array length
+
+	// -- 2d command arrary --
+	char** m_c_tok;
+
+	// -- character array to store a command string --
+	char q_comm_str[512];
+
+	// -- length of the q_comm_str character buffer
+	size_t comm_siz;
+
+		// -- tokenized command array length --
+	size_t symb_size;
 } m_command;
 
 
 //	Job struct for handeling a running process
 
 typedef struct m_job {
-	char* cmdstr;							///< The command issued for this process
+	char* j_comm_str;							///< The command issued for this process
 	bool running;							///< Status for this process (running or not)
 	int pid;								///< Process ID #
 	int jid;								///< Job ID #
@@ -72,7 +58,7 @@ typedef struct m_job {
 
 
 
-	//Signal Masking variables
+	// -- Signal Masking variables --
 
 sigset_t sigmask_1;
 
@@ -84,31 +70,31 @@ char* substring(char* str, int begin, int end);
 
 
 /**
-	* Determine if Quash gets more commands
+	* @brief Determine if Quash gets more commands
 	*
 	* @return T if program is receiving commands, F otherwise
 	*/
 bool m_get_command();
 
 /**
-	* suspends execution loop
+	* @brief suspends execution loop
 	*/
 void suspend();
 
 /**
-	* suspends quash file execution
+	* @brief suspends quash file execution
 	*/
-void suspend_from_file();
+void suspend_file_exec();
 
 /**
-	* sig mask
-	*
+	* @brief sig mask
+	* example Signals Lab05
 	* @param signal int
  */
 void sig_mask(int sig);
 
 /**
-	* sig unmask
+	* @brief sig unmask
 	*
 	* @param signal int
  */
@@ -116,20 +102,13 @@ void sig_unmask(int sig);
 
 
 /**
-	* Print Current Working Directory before shell commands
+	* @brief Print current directory before shell input
 	*/
 void curr_dir_print();
 
 
 /**
-	* Print tokens from a cmd struct
-	*
-	* @param cmd command struct
-	*/
-void print_cmd_tokens(m_command* cmd);
-
-/**
-	* background job handler
+	* @brief background job handler
 	*
 	* @param signal int
 	* @param sig struct
@@ -139,58 +118,58 @@ void m_handle_job(int signal, siginfo_t* sig, void* pos);
 
 
 /**
-	* Make fork for file redirection
+	* @brief Make fork for file redirection
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param fdi file descriptor in
 	* @param fdo file descriptor out
 	* @param envp environment variables
-	* @return RETURN_CODE
+	* @return exit status
 	*/
-int m_fork_assist (m_command* cmd, int fdi, int fdo, char* envp[]);
+int m_fork_assist (m_command* qcommd, int fdi, int fdo, char* envp[]);
 
 /**
-	*  get command and initalize #m_command struct.
+	* @brief Parse Raw Command string
 	*
-	*  @param cmd - a m_command structure. The #m_command.cmdstr and
-	*               #m_command.comm_siz fields will be modified
-	*  @param in - an open file ready for reading
-	*  @return True if able to fill #m_command.cmdstr and false otherwise
+	* @param qcommd command struct
+	* @param in instream
+	* @return bool successful parse
 	*/
-bool m_cmd_eval(m_command* cmd, FILE* in);
+bool m_cmd_parse(m_command* qcommd, FILE* in);
 
 /**
-	* command cd
+	* @brief command cd
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
   */
-void cd(m_command* cmd);
+void cd(m_command* qcommd);
 
 /**
-	* command echo
+	* @brief command echo
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
  */
-void echo(m_command* cmd);
+void echo(m_command* qcommd);
 
 /**
-	* command jobs
+	* @brief command jobs
+	*
+	* @param qcommd command struct
 	*/
-void jobs(m_command* cmd);
+void jobs(m_command* qcommd);
 
 /**
-	* Set Implementation
+	* @brief command set
 	*
-	* Assigns the specified environment variable (HOME or PATH),
-	* or displays an error for user mistakes.
+	* Assigns the specified environment variable (HOME or PATH)
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
  */
-void set(m_command* cmd);
+void set(m_command* qcommd);
 
 
 /**
-	* Executes any Quash commands from the given file
+	* @brief file command function
 	*
 	* @param argc argument count from the command line
 	* @param argv argument vector from the command line
@@ -201,59 +180,59 @@ void m_command_file(char** argv, int argc, char* envp[]);
 
 
 /**
-	* Execute Quash command
+	* @brief run quash command
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param envp environment variables
 	*/
-void quash_run(m_command* cmd, char** envp);
+void quash_run(m_command* qcommd, char** envp);
 
 
 /**
-	* Command logic
+	* @brief command logic
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param envp environment variables
-	* @return RETURN_CODE
+	* @return exit status
  */
-int command_logic(m_command* cmd, char* envp[]);
+int command_logic(m_command* qcommd, char* envp[]);
 
 /**
-	* Executes any command that can be handled with execvpe
+	* @brief runs any command that can be handled with execvpe
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param envp environment variables
-	* @return RETURN_CODE
+	* @return exit status
  */
-int prim_cmd(m_command* cmd, char* envp[]);
+int prim_cmd(m_command* qcommd, char* envp[]);
 
 
 /**
-	* Executes any command with an I/O redirection present
+	* @brief runs any command with an I/O redirection present
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param io true is stdin, false is stdout
 	* @param envp environment variables
-	* @return RETURN_CODE
+	* @return exit status
 	*/
-int input_io_cmd(m_command* cmd, bool io, char* envp[]);
+int input_io_cmd(m_command* qcommd, bool i_o, char* envp[]);
 
 /**
-	* Executes any command with an & present
+	* @brief runs any command with a "&" present
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param envp environment variables
-	* @return RETURN_CODE
+	* @return exit status
 	*/
-int exec_backg_command(m_command* cmd, char* envp[]);
+int m_cmd_background(m_command* qcommd, char* envp[]);
 
 /**
-	* Executes any command with an | present
+	* @brief runs any command with a "|" present
 	*
-	* @param cmd command struct
+	* @param qcommd command struct
 	* @param envp environment array
-	* @return RETURN_CODE
+	* @return exit status
 	*/
-int m_command_pipe(m_command* cmd, char* envp[]);
+int m_command_pipe(m_command* qcommd, char* envp[]);
 
 #endif // QUASH_H
