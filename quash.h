@@ -8,7 +8,7 @@
 	* Quash header file.
 	*/
 
-
+// -- Define Via StackOverflow to get rid of crying execvpe warnings --
 #define _GNU_SOURCE
 
 #ifndef QUASH_H
@@ -55,8 +55,8 @@ typedef struct m_command {
 										///< to modify this to accept
 										///< arbitrarily long strings for
 										///< robustness.
-	size_t cmdlen;						///< length of the cmdstr character buffer
-	size_t toklen;						///< tokenized command array length
+	size_t comm_siz;						///< length of the cmdstr character buffer
+	size_t symb_size;						///< tokenized command array length
 } m_command;
 
 
@@ -78,11 +78,7 @@ sigset_t sigmask_1;
 
 sigset_t sigmask_2;
 
-
-
-/**************************************************************************
- * Helper Functions
- **************************************************************************/
+// -- Parsing assist functions --
 
 char* substring(char* str, int begin, int end);
 
@@ -114,7 +110,7 @@ void sig_mask(int sig);
 /**
 	* sig unmask
 	*
-	* @param signal integer
+	* @param signal int
  */
 void sig_unmask(int sig);
 
@@ -133,39 +129,31 @@ void curr_dir_print();
 void print_cmd_tokens(m_command* cmd);
 
 /**
-	* Handles exiting signal from background processes
+	* background job handler
 	*
 	* @param signal int
 	* @param sig struct
-	* @param slot
+	* @param pos
 	*/
-void m_handle_job(int signal, siginfo_t* sig, void* slot);
+void m_handle_job(int signal, siginfo_t* sig, void* pos);
 
-/*
-	* Kill Command from jobs listing
-	*
-	* @param cmd command struct
-	* @return: RETURN_CODE
-*/
-int kill_proc(m_command* cmd);
 
 /**
 	* Make fork for file redirection
 	*
 	* @param cmd command struct
-	* @param fsi file descriptor in
-	* @param fso file descriptor out
+	* @param fdi file descriptor in
+	* @param fdo file descriptor out
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int m_fork_assist (m_command* cmd, int fsi, int fso, char* envp[]);
+int m_fork_assist (m_command* cmd, int fdi, int fdo, char* envp[]);
 
 /**
-	*  Read in a command and setup the #m_command struct. Also perform some minor
-	*  modifications to the string to remove trailing newline characters.
+	*  get command and initalize #m_command struct.
 	*
 	*  @param cmd - a m_command structure. The #m_command.cmdstr and
-	*               #m_command.cmdlen fields will be modified
+	*               #m_command.comm_siz fields will be modified
 	*  @param in - an open file ready for reading
 	*  @return True if able to fill #m_command.cmdstr and false otherwise
 	*/
@@ -175,8 +163,7 @@ bool m_cmd_eval(m_command* cmd, FILE* in);
 	* command cd
 	*
 	* @param cmd command struct
-	* Note: chdir will make new dir's if they don't exist
- */
+  */
 void cd(m_command* cmd);
 
 /**
@@ -201,9 +188,6 @@ void jobs(m_command* cmd);
  */
 void set(m_command* cmd);
 
-/**************************************************************************
- * File Execution Functions
- **************************************************************************/
 
 /**
 	* Executes any Quash commands from the given file
@@ -214,9 +198,7 @@ void set(m_command* cmd);
 	*/
 void m_command_file(char** argv, int argc, char* envp[]);
 
-/**************************************************************************
- * Running Quash Functions
- **************************************************************************/
+
 
 /**
 	* Execute Quash command
@@ -226,14 +208,6 @@ void m_command_file(char** argv, int argc, char* envp[]);
 	*/
 void quash_run(m_command* cmd, char** envp);
 
-/**
-	* Executes any command that can be handled with execvpe (ergo free of |, <, >, or &)
-	*
-	* @param cmd command struct
-	* @param envp environment variables
-	* @return RETURN_CODE
- */
-int prim_cmd(m_command* cmd, char* envp[]);
 
 /**
 	* Command logic
@@ -243,6 +217,15 @@ int prim_cmd(m_command* cmd, char* envp[]);
 	* @return RETURN_CODE
  */
 int command_logic(m_command* cmd, char* envp[]);
+
+/**
+	* Executes any command that can be handled with execvpe
+	*
+	* @param cmd command struct
+	* @param envp environment variables
+	* @return RETURN_CODE
+ */
+int prim_cmd(m_command* cmd, char* envp[]);
 
 
 /**

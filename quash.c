@@ -19,11 +19,9 @@ static struct m_job all_jobs[MAX_NUM_JOBS];
 
 static int num_jobs = 0;
 
-/**************************************************************************
- * Private Functions
- **************************************************************************/
+
 /**
- * Start the main loop by setting the running flag to true
+ * Quash begin execution
 	*/
 static void start_quash()
 {
@@ -38,9 +36,6 @@ static void start_from_file()
 	m_file_run = true;
 }
 
-/**************************************************************************
- * Helper Functions
- **************************************************************************/
 
 /**
 	* Query if quash should accept more input or not.
@@ -98,7 +93,7 @@ void print_cmd_tokens(m_command* cmd)
 {
 	int t = 0;
 	puts("Struct Token String\n");
-	for ( ;t <= cmd->toklen; t++)
+	for ( ;t <= cmd->symb_size; t++)
 		printf("%d: %s\n", t, cmd->m_c_tok[t]);
 }
 
@@ -117,12 +112,14 @@ void curr_dir_print()
 	*
 	* @param signal int
 	* @param sig struct
-	* @param slot
+	* @param pos
 	*/
-void m_handle_job(int signal, siginfo_t* sig, void* slot) {
+void m_handle_job(int signal, siginfo_t* sig, void* pos)
+{
 	pid_t p = sig->si_pid;
 	int i = 0;
-	for ( ; i < num_jobs; ++i) {
+	for ( ; i < num_jobs; ++i)
+	{
 		if ( all_jobs[i].pid == p )
 			break;
 	}
@@ -131,43 +128,6 @@ void m_handle_job(int signal, siginfo_t* sig, void* slot) {
 		all_jobs[i].running = true;
 		free(all_jobs[i].cmdstr);
 	}
-}
-
-/*
-	* Kill Command from jobs listing
-	*
-	* @param cmd command struct
-	* @return: Exit status
-*/
-int kill_proc(m_command* cmd) {
-	////////////////////////////////////////////////////////////////////////////////
-	// Kill requires 3 arguments
-	////////////////////////////////////////////////////////////////////////////////
-	if ( cmd->toklen == 3 ) {
-		int k_sig;
-		sscanf(cmd->m_c_tok[1], "%d", &k_sig);
-		int num;
-		sscanf(cmd->m_c_tok[2], "%d", &num);
-
-		////////////////////////////////////////////////////////////////////////////////
-		// Kill provided Job
-		////////////////////////////////////////////////////////////////////////////////
-		if ( all_jobs[num].pid )
-			kill(all_jobs[num].pid, k_sig);
-		else {
-			printf("Error: process does not exist \n");
-			return EXIT_FAILURE;
-		}
-	}
-	////////////////////////////////////////////////////////////////////////////////
-	// Otherwise error status
-	////////////////////////////////////////////////////////////////////////////////
-	else
-	{
-		puts("kill: Incorrect syntax. provide 2 arguments:\n");
-		return EXIT_FAILURE;
-	}
-	return EXIT_SUCCESS;
 }
 
 /**
@@ -235,31 +195,31 @@ bool m_cmd_eval(m_command* cmd, FILE* in) {
 		if ( last_char == '\n' || last_char == '\r' ) {
 			// Remove trailing new line character.
 			cmd->cmdstr[len - 1] = '\0';
-			cmd->cmdlen = len - 1;
+			cmd->comm_siz = len - 1;
 		}
 		else
-			cmd->cmdlen = len;
+			cmd->comm_siz = len;
 
 		//------------------------------------------------------------------------------
 		// Empty Command return true - MUST BE HANDLED
 		//------------------------------------------------------------------------------
-		if ( !(int)cmd->cmdlen )
+		if ( !(int)cmd->comm_siz )
 			return true;
 
 		//------------------------------------------------------------------------------
 		// Tokenize command arguments
 		//------------------------------------------------------------------------------
 		cmd->m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
-		cmd->toklen = 0;
+		cmd->symb_size = 0;
 
 		char* token = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 
 		token = strtok (cmd->cmdstr," ");
 		while ( token != NULL )
 		{
-			//debug print - printf ("%d: %s\n", (int)cmd->toklen, token);
-			cmd->m_c_tok[cmd->toklen] = token;
-			cmd->toklen++;
+			//debug print - printf ("%d: %s\n", (int)cmd->symb_size, token);
+			cmd->m_c_tok[cmd->symb_size] = token;
+			cmd->symb_size++;
 			token = strtok(NULL, " ");
 		}
 
@@ -267,7 +227,7 @@ bool m_cmd_eval(m_command* cmd, FILE* in) {
 		//------------------------------------------------------------------------------
 		// Remove NULL token from end
 		//------------------------------------------------------------------------------
-		cmd->m_c_tok[cmd->toklen] = '\0';
+		cmd->m_c_tok[cmd->symb_size] = '\0';
 
 		return true;
 	}
@@ -303,11 +263,11 @@ char* substring(char* str, int begin, int end)
 	*/
 void cd(m_command* cmd)
 {
-	if ( cmd->toklen < 2 ) {
+	if ( cmd->symb_size < 2 ) {
 		if ( chdir(getenv("HOME")) )
 			printf("cd: %s: Cannot navigate to $HOME\n", getenv("HOME"));
 	}
-	else if ( cmd->toklen > 2 )
+	else if ( cmd->symb_size > 2 )
 		puts("Too many arguments");
 	else {
 		if ( chdir(cmd->m_c_tok[1]) )
@@ -323,7 +283,7 @@ void cd(m_command* cmd)
 	*/
 void echo(m_command* cmd)
 {
-	if ( cmd->toklen == 2 ) {
+	if ( cmd->symb_size == 2 ) {
 		if ( !strcmp(cmd->m_c_tok[1], "$HOME") )
 			puts(getenv("HOME"));
 		else if ( !strcmp(cmd->m_c_tok[1], "$PATH") )
@@ -333,12 +293,12 @@ void echo(m_command* cmd)
 		else
 			puts(cmd->m_c_tok[1]);
 	}
-	else if ( cmd->toklen == 1 ) {
+	else if ( cmd->symb_size == 1 ) {
 		puts(getenv("HOME"));
 	}
 	else{
 		int i = 1;
-		for ( ; i < cmd->toklen; i++ )
+		for ( ; i < cmd->symb_size; i++ )
 			printf("%s ", cmd->m_c_tok[i]);
 		puts("");
 	}
@@ -438,15 +398,13 @@ void quash_run(m_command* cmd, char** envp) {
 	if ( !strcmp(cmd->cmdstr, "exit") || !strcmp(cmd->cmdstr, "quit") )
 		suspend(); // Exit Quash
 
-	else if ( !cmd->cmdlen ) {}
+	else if ( !cmd->comm_siz ) {}
 	else if ( strcmp(cmd->m_c_tok[0], "cd") == 0 )
 		cd(cmd);
 	else if ( strcmp(cmd->m_c_tok[0], "echo") == 0 )
 		echo(cmd);
 	else if ( !strcmp(cmd->m_c_tok[0], "jobs") )
 		jobs(cmd);
-	else if ( !strcmp(cmd->m_c_tok[0], "kill") )
-		kill_proc(cmd);
 	else if ( !strcmp(cmd->m_c_tok[0], "set") )
 		set(cmd);
 	else
@@ -468,16 +426,17 @@ int command_logic(m_command* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Command Flag Initializations
 	////////////////////////////////////////////////////////////////////////////////
+	bool p_bool = false;	//pipe
 	bool b_bool = false;	//background
 	bool i_bool = false;	//input redirection
 	bool o_bool = false;	//output redirection
-	bool p_bool = false;	//pipe
+
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Walk command tokens and flip flags
 	////////////////////////////////////////////////////////////////////////////////
 	int i = 1;
-	for (; i < cmd->toklen; i++) {
+	for (; i < cmd->symb_size; i++) {
 		if ( !strcmp(cmd->m_c_tok[i], "&") )
 			b_bool = true;
 		else if ( !strcmp(cmd->m_c_tok[i], "<") )
@@ -494,8 +453,8 @@ int command_logic(m_command* cmd, char* envp[])
 
 	if ( b_bool )
 	{
-		cmd->m_c_tok[cmd->toklen - 1] = '\0'; // remove & token
-		cmd->toklen--;
+		cmd->m_c_tok[cmd->symb_size - 1] = '\0'; // remove & token
+		cmd->symb_size--;
 		RETURN_CODE = exec_backg_command(cmd, envp);
 	}
 	else if ( i_bool )
@@ -510,7 +469,7 @@ int command_logic(m_command* cmd, char* envp[])
 }
 
 /**
-	* Run command with execvpe (ergo free of |, <, >, or &)
+	* Run command with execvpe 
 	*
 	* @param cmd command struct
 	* @param envp environment variables
@@ -582,7 +541,7 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 
 	pid_t ret;
 	int m_wait;
-	int file_desc;
+	int fds;
 	signal(SIGINT, sig_mask);
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -621,12 +580,12 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 		// Initialize and Verify File Descriptor
 		////////////////////////////////////////////////////////////////////////////////
 		if ( io )
-			file_desc = open(cmd->m_c_tok[cmd->toklen - 1], O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+			fds = open(cmd->m_c_tok[cmd->symb_size - 1], O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		else
-			file_desc = open(cmd->m_c_tok[cmd->toklen - 1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+			fds = open(cmd->m_c_tok[cmd->symb_size - 1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
-		if ( file_desc < 0 ) {
-			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->toklen - 1], errno);
+		if ( fds < 0 ) {
+			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->symb_size - 1], errno);
 			exit(EXIT_FAILURE);
 		}
 
@@ -635,17 +594,17 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 		////////////////////////////////////////////////////////////////////////////////
 		if ( io )
 		{
-			if (dup2(file_desc, STDIN_FILENO) < 0)
+			if (dup2(fds, STDIN_FILENO) < 0)
 			{
-				fprintf(stderr, "\nError redirecting STDIN to %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->toklen - 1], errno);
+				fprintf(stderr, "\nError redirecting STDIN to %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->symb_size - 1], errno);
 				exit(EXIT_FAILURE);
 			}
 		}
 		else
 		{
-			if (dup2(file_desc, STDOUT_FILENO) < 0)
+			if (dup2(fds, STDOUT_FILENO) < 0)
 			{
-				fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->toklen - 1], errno);
+				fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", cmd->m_c_tok[cmd->symb_size - 1], errno);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -653,10 +612,10 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 		////////////////////////////////////////////////////////////////////////////////
 		// Execute Command - remove last two redirection arguments
 		////////////////////////////////////////////////////////////////////////////////
-		close(file_desc);
-		cmd->m_c_tok[cmd->toklen - 1] = NULL;
-		cmd->m_c_tok[cmd->toklen - 2] = NULL;
-		cmd->toklen = cmd->toklen - 2;
+		close(fds);
+		cmd->m_c_tok[cmd->symb_size - 1] = NULL;
+		cmd->m_c_tok[cmd->symb_size - 2] = NULL;
+		cmd->symb_size = cmd->symb_size - 2;
 
 		if ( execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0	&& errno == 2 ) {
 			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->m_c_tok[0]);
@@ -682,7 +641,7 @@ int exec_backg_command(m_command* cmd, char* envp[])
 {
 	pid_t ret;
 	int m_wait;
-	int file_desc;
+	int fds;
 
 	////////////////////////////////////////////////////////////////////////////////
 	// signal masking struct
@@ -750,14 +709,14 @@ int exec_backg_command(m_command* cmd, char* envp[])
 		strcpy(temp_file, cpid);
 		strcat(temp_file, "-temp_file_output.out");
 
-		file_desc = open(temp_file, O_TRUNC | O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+		fds = open(temp_file, O_TRUNC | O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
-		if ( file_desc < 0 ) {
+		if ( fds < 0 ) {
 			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", temp_file, errno);
 			exit(EXIT_FAILURE);
 		}
 
-		if ( dup2(file_desc, STDOUT_FILENO) < 0 ) {
+		if ( dup2(fds, STDOUT_FILENO) < 0 ) {
 			fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", temp_file, errno);
 			exit(EXIT_FAILURE);
 		}
@@ -787,29 +746,34 @@ int exec_backg_command(m_command* cmd, char* envp[])
 int m_command_pipe(m_command* cmd, char* envp[])
 {
 
-	// Sig handle interrupts
+	// SIGINT SIG
 
 	signal(SIGINT, sig_mask);
 
 
 	// -- Distribute tokens into array --
 
-	int i = 0, j = 0, k = 0, cmd_numbers;
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	int cmd_numbers;
 
 	m_command* cmds = malloc(MAX_COMMAND_ARGLEN * (sizeof *cmds) );
 
 	cmds[0].m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 
-	for ( ; i < cmd->toklen; i++ ) {
-		if ( !strcmp(cmd->m_c_tok[i], "|") ) {
+	for ( ; i < cmd->symb_size; i++ ) {
+		if ( !strcmp(cmd->m_c_tok[i], "|") )
+		{
 			//matches pipe
 			cmds[j].m_c_tok[k] = NULL;
-			cmds[j].toklen = k;
+			cmds[j].symb_size = k;
 			j++;
 			cmds[j].m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 			k = 0;
 		}
-		else {
+		else
+		{
 			cmds[j].m_c_tok[k] = malloc( sizeof(char) * M_COMMAND_NAME );
 			strcpy(cmds[j].m_c_tok[k], cmd->m_c_tok[i]);
 
@@ -817,24 +781,24 @@ int m_command_pipe(m_command* cmd, char* envp[])
 		}
 	}
 	cmds[j].m_c_tok[k] = NULL;
-	cmds[j].toklen = k;
+	cmds[j].symb_size = k;
 	cmd_numbers = j;
 
 	i = 0;
 	j = 0;
-	int file_desc[2];
+	int fds[2];
 
 
 	// Create and link pipes
 	////////////////////////////////////////////////////////////////////////////////
 	for ( i = 0; i < cmd_numbers - 1; ++i ) {
-		if ( pipe(file_desc) < 0 ) {
+		if ( pipe(fds) < 0 ) {
 			fprintf(stderr, "\nPipe initalize errors. ERRNO:%d\n", errno);
 			return EXIT_FAILURE;
 		}
-		m_fork_assist(&cmds[i], j, file_desc[1], envp);
-		close(file_desc [1]);
-		j = file_desc[0];
+		m_fork_assist(&cmds[i], j, fds[1], envp);
+		close(fds [1]);
+		j = fds[0];
 	}
 
 	if ( j != 0 )
