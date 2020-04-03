@@ -294,12 +294,8 @@ char* substring(char* str, int begin, int end)
 	return substr;
 }
 
-/**************************************************************************
- * Shell Fuctionality
- **************************************************************************/
-
 /**
-	* CD Implementation
+	* command cd
 	*
 	* @param cmd command struct
 	* @return void
@@ -320,7 +316,7 @@ void cd(m_command* cmd)
 }
 
 /**
-	* Echo Implementation
+	* command echo
 	*
 	* @param cmd command struct
 	* @return void
@@ -349,7 +345,8 @@ void echo(m_command* cmd)
 }
 
 /**
-	* Displays all currently running jobs
+	* commmand jobs
+	*
 	* @return void
 	*/
 void jobs(m_command* cmd) {
@@ -363,7 +360,7 @@ void jobs(m_command* cmd) {
 }
 
 /**
-	* Command "Set" Implementation
+	* command set
 	*
 	* Assigns the specified environment variable (HOME or PATH),
 	* or displays an error for user mistakes.
@@ -385,9 +382,9 @@ void set(m_command* cmd) {
 			printf("\tset PATH=/directory/to/use/for/path\n");
 			printf("\tset HOME=/directory/to/use/for/home\n");
 		}
-		////////////////////////////////////////////////////////////////////////////////
+
 		// Set the environment variable
-		////////////////////////////////////////////////////////////////////////////////
+
 		else //if ( !strcmp(env, "PATH") || !strcmp(env, "HOME") )
 			setenv(env, dir, 1);
 		//else
@@ -400,7 +397,7 @@ void set(m_command* cmd) {
  **************************************************************************/
 
 /**
-	* Executes any Quash commands from the given file
+	* file command function
 	*
 	* @param argc argument count from the command line
 	* @param argv argument vector from the command line
@@ -408,32 +405,27 @@ void set(m_command* cmd) {
 	*/
 void m_command_file(char** argv, int argc, char* envp[]) {
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Args
-	////////////////////////////////////////////////////////////////////////////////
+
 	m_command cmd;
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Redirect Quash Standard Input
-	////////////////////////////////////////////////////////////////////////////////
+
+	// -- Redirect Quash Standard Input --
+
 	start_from_file();
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Command Loop
-	////////////////////////////////////////////////////////////////////////////////
+
+	// -- file input --
+
 	while (m_cmd_eval(&cmd, stdin)) {
 		quash_run(&cmd, envp);
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// suspend File execution and start normal program execution
-	////////////////////////////////////////////////////////////////////////////////
+
+	// -- suspend File execution --
+
 	suspend_from_file();
 }
 
-/**************************************************************************
- * Execution Functions
- **************************************************************************/
 
 /**
 	* Runs the specified Quash command
@@ -442,14 +434,10 @@ void m_command_file(char** argv, int argc, char* envp[]) {
 	* @param envp environment variables
 	*/
 void quash_run(m_command* cmd, char** envp) {
-	////////////////////////////////////////////////////////////////////////////////
-	// Command Decision Structure
-	////////////////////////////////////////////////////////////////////////////////
+
 	if ( !strcmp(cmd->cmdstr, "exit") || !strcmp(cmd->cmdstr, "quit") )
 		suspend(); // Exit Quash
-	////////////////////////////////////////////////////////////////////////////////
-	// Do nothing -- just print the cwd to display we're still in the shell.
-	////////////////////////////////////////////////////////////////////////////////
+
 	else if ( !cmd->cmdlen ) {}
 	else if ( strcmp(cmd->m_c_tok[0], "cd") == 0 )
 		cd(cmd);
@@ -589,10 +577,10 @@ int prim_cmd(m_command* cmd, char* envp[])
 	*/
 int input_io_cmd(m_command* cmd, bool io, char* envp[])
 {
-	////////////////////////////////////////////////////////////////////////////////
-	// Mask Inturrept Signals and Initialize Variables
-	////////////////////////////////////////////////////////////////////////////////
-	pid_t p;
+
+	// -- Sig masking interrupt --
+
+	pid_t ret;
 	int m_wait;
 	int file_desc;
 	signal(SIGINT, sig_mask);
@@ -600,8 +588,8 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Fork And Verify Process
 	////////////////////////////////////////////////////////////////////////////////
-	p = fork();
-	if ( p < 0 )
+	ret = fork();
+	if ( ret < 0 )
 	{
 		fprintf(stderr, "Error forking redir command. ERRNO\"%d\"\n", errno);
 		exit(EXIT_FAILURE);
@@ -610,11 +598,11 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Parent
 	////////////////////////////////////////////////////////////////////////////////
-	if ( p != 0 )
+	if ( ret != 0 )
 	{
-		if (waitpid(p, &m_wait, 0) == -1)
+		if (waitpid(ret, &m_wait, 0) == -1)
 		{
-			fprintf(stderr, "Error with redir command's child	%d. ERRNO\"%d\"\n", p, errno);
+			fprintf(stderr, "Error with redir command's child	%d. ERRNO\"%d\"\n", ret, errno);
 			return EXIT_FAILURE;
 		}
 		if ( WIFEXITED(m_wait) && WEXITSTATUS(m_wait) == EXIT_FAILURE )
@@ -692,7 +680,7 @@ int input_io_cmd(m_command* cmd, bool io, char* envp[])
 	*/
 int exec_backg_command(m_command* cmd, char* envp[])
 {
-	pid_t p;
+	pid_t ret;
 	int m_wait;
 	int file_desc;
 
@@ -709,8 +697,8 @@ int exec_backg_command(m_command* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Fork And Verify Process
 	////////////////////////////////////////////////////////////////////////////////
-	p = fork();
-	if ( p < 0 )
+	ret = fork();
+	if ( ret < 0 )
 	{
 		fprintf(stderr, "\nEncounter error forking background command. ERRNO\"%d\"\n", errno);
 		exit(EXIT_FAILURE);
@@ -719,7 +707,7 @@ int exec_backg_command(m_command* cmd, char* envp[])
 	////////////////////////////////////////////////////////////////////////////////
 	// Parent
 	////////////////////////////////////////////////////////////////////////////////
-	if ( p != 0 )
+	if ( ret != 0 )
 	{
 
 		//Create new job process struct
@@ -728,13 +716,13 @@ int exec_backg_command(m_command* cmd, char* envp[])
 		create_job.cmdstr = (char*) malloc(M_COMMAND_NAME);
 		strcpy(create_job.cmdstr, cmd->m_c_tok[0]);
 		create_job.running = false;
-		create_job.pid = p;
+		create_job.pid = ret;
 		create_job.jid = num_jobs;
 
 
 		// -- Background job scruct --
 
-		printf("[%d] %d running in background\n", num_jobs, p);
+		printf("[%d] %d running in background\n", num_jobs, ret);
 		all_jobs[num_jobs] = create_job;
 		num_jobs++;
 
@@ -742,7 +730,7 @@ int exec_backg_command(m_command* cmd, char* envp[])
 		// Signal unmasking, wait for finish
 
 		sigprocmask(SIG_UNBLOCK, &sigmask_1, &sigmask_2);
-		while (waitpid(p, &m_wait, WNOHANG) > 0) {}
+		while (waitpid(ret, &m_wait, WNOHANG) > 0) {}
 		return EXIT_SUCCESS;
 
 	}
@@ -832,17 +820,16 @@ int m_command_pipe(m_command* cmd, char* envp[])
 	cmds[j].toklen = k;
 	cmd_numbers = j;
 
-
 	i = 0;
 	j = 0;
 	int file_desc[2];
 
-	////////////////////////////////////////////////////////////////////////////////
+
 	// Create and link pipes
 	////////////////////////////////////////////////////////////////////////////////
 	for ( i = 0; i < cmd_numbers - 1; ++i ) {
 		if ( pipe(file_desc) < 0 ) {
-			fprintf(stderr, "\nError in pipe creation. ERRNO:%d\n", errno);
+			fprintf(stderr, "\nPipe initalize errors. ERRNO:%d\n", errno);
 			return EXIT_FAILURE;
 		}
 		m_fork_assist(&cmds[i], j, file_desc[1], envp);

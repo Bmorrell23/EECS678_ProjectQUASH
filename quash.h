@@ -160,11 +160,6 @@ int kill_proc(m_command* cmd);
 	*/
 int m_fork_assist (m_command* cmd, int fsi, int fso, char* envp[]);
 
-
-/**************************************************************************
- * String Manipulation Functions
- **************************************************************************/
-
 /**
 	*  Read in a command and setup the #m_command struct. Also perform some minor
 	*  modifications to the string to remove trailing newline characters.
