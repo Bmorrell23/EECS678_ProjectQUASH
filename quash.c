@@ -5,15 +5,13 @@
  *
  * EECS 678 Spring 20'
  *
- * Project 1 Quash's main file
+ * Project Quash .c
  */
-
 #include "quash.h"
-
 
  // Private global variables
 
-static bool running_from_file;
+static bool m_file_run;
 
 static bool m_running;
 
@@ -37,7 +35,7 @@ static void start_quash()
 	*/
 static void start_from_file()
 {
-	running_from_file = true;
+	m_file_run = true;
 }
 
 /**************************************************************************
@@ -49,9 +47,9 @@ static void start_from_file()
 	*
 	* @return True if Quash should accept more input, otherwise false
 	*/
-bool is_running()
+bool m_get_command()
 {
-	return m_running || running_from_file;
+	return m_running || m_file_run;
 }
 
 /**
@@ -67,26 +65,26 @@ void suspend()
 	*/
 void suspend_from_file()
 {
-	running_from_file = false;
+	m_file_run = false;
 }
 
 /**
 	* Mask Signal
-	*	From Signals Lab05
+	*	example Signals Lab05
 	* silences signals during quash execution for safety
 	* @param signal integer
  */
-void mask_signal(int signal)
+void sig_mask(int sig)
 {
 	printf("\n");
 }
 
 /**
-	* Unmask Signal
-	*
+	* sig unmask
+	* example Signals Lab05
 	* @param signal integer
  */
-void unmask_signal(int signal)
+void sig_unmask(int sig)
 {
 	exit(0);
 }
@@ -110,7 +108,7 @@ void print_cmd_tokens(m_command* cmd)
 void curr_dir_print()
 {
 	char cwd[MAX_COMMAND_LENGTH];	//cwd arg - print before each shell command
-	if ( getcwd(cwd, sizeof(cwd)) && !running_from_file )
+	if ( getcwd(cwd, sizeof(cwd)) && !m_file_run )
 		printf("\n[Quash: %s] q$ ", cwd);
 }
 
@@ -121,7 +119,7 @@ void curr_dir_print()
 	* @param sig struct
 	* @param slot
 	*/
-void job_handler(int signal, siginfo_t* sig, void* slot) {
+void m_handle_job(int signal, siginfo_t* sig, void* slot) {
 	pid_t p = sig->si_pid;
 	int i = 0;
 	for ( ; i < num_jobs; ++i) {
@@ -173,58 +171,54 @@ int kill_proc(m_command* cmd) {
 }
 
 /**
-	* Creates forks and redirects file streams for use in iterative fashion
+	* Make fork for file redirection
 	*
 	* @param cmd command struct
-	* @param fsi file descriptor in
-	* @param fso file descriptor out
+	* @param fdi file descriptor in
+	* @param fdo file descriptor out
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int iterative_fork_helper (m_command* cmd, int fsi, int fso, char* envp[])
+int m_fork_assist (m_command* cmd, int fdi, int fdo, char* envp[])
 {
 	pid_t p;
 
 	if ( !(p = fork ()) ) {
-		//------------------------------------------------------------------------------
-		// Redirect for STDOUT
-		//------------------------------------------------------------------------------
-		if ( fso != 1 ) {
-			if ( dup2(fso, STDOUT_FILENO) < 0 ) {
-				fprintf(stderr, "\nError redirecting STDOUT. ERRNO\"%d\"\n", errno);
+
+		// -- file out implementation --
+
+		if ( fdo != 1 ) {
+			if ( dup2(fdo, STDOUT_FILENO) < 0 ) {
+				fprintf(stderr, "\nstdout file direction error. ERRNO\"%d\"\n", errno);
 				exit(EXIT_FAILURE);
 			}
-			close (fso);
+			close (fdo);
 		}
-		//------------------------------------------------------------------------------
-		// Redirect for STDIN
-		//------------------------------------------------------------------------------
-		if ( fsi != 0 ) {
-			if ( dup2(fsi, STDIN_FILENO ) < 0) {
-				fprintf(stderr, "\nError redirecting STDIN. ERRNO\"%d\"\n", errno);
+
+		// -- file in implementation --
+
+		if ( fdi != 0 ) {
+			if ( dup2(fdi, STDIN_FILENO ) < 0) {
+				fprintf(stderr, "\nstdin file direction error. ERRNO\"%d\"\n", errno);
 				exit(EXIT_FAILURE);
 			}
-			close (fsi);
+			close (fdi);
 		}
 		//------------------------------------------------------------------------------
-		// Execute Command
-		//------------------------------------------------------------------------------
+		// cmd execute
+		//-----------------------------------------------------------------------------
 		if ( execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0	&& errno == 2 ) {
 			fprintf(stderr, "Command: \"%s\" cannot be found.\n", cmd->m_c_tok[0]);
 			exit(EXIT_FAILURE);
 		}
 		else {
-			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
+			fprintf(stderr, "Command error %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
 		return EXIT_SUCCESS;
 	}
 	return p;
 }
-
-/**************************************************************************
- * String Manipulation Functions
- **************************************************************************/
 
 /**
 	* Parse Raw Command string
@@ -233,7 +227,7 @@ int iterative_fork_helper (m_command* cmd, int fsi, int fso, char* envp[])
 	* @param in instream
 	* @return bool successful parse
 	*/
-bool get_command(m_command* cmd, FILE* in) {
+bool m_cmd_eval(m_command* cmd, FILE* in) {
 	if ( fgets(cmd->cmdstr, MAX_COMMAND_LENGTH, in) != NULL ) {
 		size_t len = strlen(cmd->cmdstr);
 		char last_char = cmd->cmdstr[len - 1];
@@ -412,7 +406,7 @@ void set(m_command* cmd) {
 	* @param argv argument vector from the command line
 	* @param envp environment variables
 	*/
-void exec_from_file(char** argv, int argc, char* envp[]) {
+void m_command_file(char** argv, int argc, char* envp[]) {
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Args
@@ -427,7 +421,7 @@ void exec_from_file(char** argv, int argc, char* envp[]) {
 	////////////////////////////////////////////////////////////////////////////////
 	// Command Loop
 	////////////////////////////////////////////////////////////////////////////////
-	while (get_command(&cmd, stdin)) {
+	while (m_cmd_eval(&cmd, stdin)) {
 		quash_run(&cmd, envp);
 	}
 
@@ -506,11 +500,10 @@ int command_logic(m_command* cmd, char* envp[])
 			p_bool = true;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Execute designated command
-	////////////////////////////////////////////////////////////////////////////////
+	//run command
+
 	int RETURN_CODE = 0;
-	// we have access to numArgs here and this will be portable
+
 	if ( b_bool )
 	{
 		cmd->m_c_tok[cmd->toklen - 1] = '\0'; // remove & token
@@ -518,72 +511,68 @@ int command_logic(m_command* cmd, char* envp[])
 		RETURN_CODE = exec_backg_command(cmd, envp);
 	}
 	else if ( i_bool )
-		RETURN_CODE = exec_redir_command(cmd, true, envp);
+		RETURN_CODE = input_io_cmd(cmd, true, envp);
 	else if ( o_bool )
-		RETURN_CODE = exec_redir_command(cmd, false, envp);
+		RETURN_CODE = input_io_cmd(cmd, false, envp);
 	else if ( p_bool )
-		RETURN_CODE = exec_pipe_command(cmd, envp);
+		RETURN_CODE = m_command_pipe(cmd, envp);
 	else
-		RETURN_CODE = exec_basic_command(cmd, envp);
+		RETURN_CODE = prim_cmd(cmd, envp);
 	return RETURN_CODE;
 }
 
 /**
-	* Executes any command that can be handled with execvpe (ergo free of |, <, >, or &)
+	* Run command with execvpe (ergo free of |, <, >, or &)
 	*
 	* @param cmd command struct
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_basic_command(m_command* cmd, char* envp[])
+int prim_cmd(m_command* cmd, char* envp[])
 {
-	////////////////////////////////////////////////////////////////////////////////
-	// Mask Inturrept Signals and Initialize Variables
-	////////////////////////////////////////////////////////////////////////////////
-	pid_t p;
-	int m_wait;
-	signal(SIGINT, mask_signal);
+	// sig mask
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Fork And Verify Process
-	////////////////////////////////////////////////////////////////////////////////
-	p = fork();
-	if ( p < 0 )
+	pid_t ret;
+	int m_wait;
+	signal(SIGINT, sig_mask);
+
+	//Fork and check
+
+	ret = fork();
+	if ( ret < 0 )
 	{
-		fprintf(stderr, "Error forking basic command. Error:%d\n", errno);
+		fprintf(stderr, "Primary forking error. Error:%d\n", errno);
 		exit(EXIT_FAILURE);
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Parent
-	////////////////////////////////////////////////////////////////////////////////
-	if ( p != 0 )
+	// -- parent p --
+
+	if ( ret != 0 )
 	{
-		if ( waitpid(p, &m_wait, 0) < 0 )
+		if ( waitpid(ret, &m_wait, 0) < 0 )
 		{
-			signal(SIGINT, unmask_signal);
-			fprintf(stderr, "Error with basic command's child	%d. ERRNO\"%d\"\n", p, errno);
+			signal(SIGINT, sig_unmask);
+			fprintf(stderr, "Primary forking error child	%d. ERRNO\"%d\"\n", ret, errno);
 			return EXIT_FAILURE;
 		}
 		if ( WIFEXITED(m_wait) && WEXITSTATUS(m_wait) == EXIT_FAILURE )
 			return EXIT_FAILURE;
-		signal(SIGINT, unmask_signal);
+		signal(SIGINT, sig_unmask);
 		return EXIT_SUCCESS;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Child process
-	////////////////////////////////////////////////////////////////////////////////
+	// -- child p --
+
 	else
 	{
 		if ( execvpe(cmd->m_c_tok[0], cmd->m_c_tok, envp) < 0	&& errno == 2 )
 		{
-			fprintf(stderr, "Command: \"%s\" not found.\n", cmd->m_c_tok[0]);
+			fprintf(stderr, "Command: \"%s\" cannot be located.\n", cmd->m_c_tok[0]);
 			exit(EXIT_FAILURE);
 		}
 		else
 		{
-			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
+			fprintf(stderr, "Run error %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
 		exit(EXIT_SUCCESS);
@@ -598,7 +587,7 @@ int exec_basic_command(m_command* cmd, char* envp[])
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_redir_command(m_command* cmd, bool io, char* envp[])
+int input_io_cmd(m_command* cmd, bool io, char* envp[])
 {
 	////////////////////////////////////////////////////////////////////////////////
 	// Mask Inturrept Signals and Initialize Variables
@@ -606,7 +595,7 @@ int exec_redir_command(m_command* cmd, bool io, char* envp[])
 	pid_t p;
 	int m_wait;
 	int file_desc;
-	signal(SIGINT, mask_signal);
+	signal(SIGINT, sig_mask);
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Fork And Verify Process
@@ -631,7 +620,7 @@ int exec_redir_command(m_command* cmd, bool io, char* envp[])
 		if ( WIFEXITED(m_wait) && WEXITSTATUS(m_wait) == EXIT_FAILURE )
 			return EXIT_FAILURE;
 
-		signal(SIGINT, unmask_signal);
+		signal(SIGINT, sig_unmask);
 		return EXIT_SUCCESS;
 	}
 
@@ -689,7 +678,7 @@ int exec_redir_command(m_command* cmd, bool io, char* envp[])
 			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
-		signal(SIGINT, unmask_signal);
+		signal(SIGINT, sig_unmask);
 		exit(EXIT_SUCCESS);
 	}
 }
@@ -708,10 +697,10 @@ int exec_backg_command(m_command* cmd, char* envp[])
 	int file_desc;
 
 	////////////////////////////////////////////////////////////////////////////////
-	// Handle and Initialize Signal Masking
+	// signal masking struct
 	////////////////////////////////////////////////////////////////////////////////
 	struct sigaction action;
-	action.sa_sigaction = *job_handler;
+	action.sa_sigaction = *m_handle_job;
 	action.sa_flags = SA_SIGINFO | SA_RESTART ;
 	if ( sigaction(SIGCHLD, &action, NULL) < 0 )
 		fprintf(stderr, "Background signal handler error: ERRNO\"%d\"\n", errno);
@@ -794,30 +783,33 @@ int exec_backg_command(m_command* cmd, char* envp[])
 			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 			exit(EXIT_FAILURE);
 		}
-		signal(SIGINT, unmask_signal);
+		signal(SIGINT, sig_unmask);
 		exit(EXIT_SUCCESS);
 	}
 
 }
 
 /**
-	* Executes any command with an | present
+	* Sort pipe commands
 	*
 	* @param cmd command struct
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_pipe_command(m_command* cmd, char* envp[]) {
-	////////////////////////////////////////////////////////////////////////////////
-	// Mask Inturrept Signals
-	////////////////////////////////////////////////////////////////////////////////
-	signal(SIGINT, mask_signal);
+int m_command_pipe(m_command* cmd, char* envp[])
+{
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Tokenize Piped Command into pieces
-	////////////////////////////////////////////////////////////////////////////////
+	// Sig handle interrupts
+
+	signal(SIGINT, sig_mask);
+
+
+	// -- Distribute tokens into array --
+
 	int i = 0, j = 0, k = 0, cmd_numbers;
-	m_command* cmds = malloc(MAX_COMMAND_ARGLEN * sizeof *cmds);
+
+	m_command* cmds = malloc(MAX_COMMAND_ARGLEN * (sizeof *cmds) );
+
 	cmds[0].m_c_tok = malloc( sizeof(char*) * MAX_COMMAND_ARGLEN );
 
 	for ( ; i < cmd->toklen; i++ ) {
@@ -832,7 +824,7 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 		else {
 			cmds[j].m_c_tok[k] = malloc( sizeof(char) * M_COMMAND_NAME );
 			strcpy(cmds[j].m_c_tok[k], cmd->m_c_tok[i]);
-			//debug printf("cmds[%d]->tok[%d] = %s\n", j, k, cmds[j].tok[k]);
+
 			k++;
 		}
 	}
@@ -840,12 +832,6 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 	cmds[j].toklen = k;
 	cmd_numbers = j;
 
-//debug
-/*	for (i = 0; i <= cmd_numbers; i ++) {
-		for (j = 0; j <= cmds[i].toklen; j++) {
-			printf("cmds[%d].tok[%d] = %s\n", i, j, cmds[i].tok[j]);
-		}
-	}*/
 
 	i = 0;
 	j = 0;
@@ -859,7 +845,7 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 			fprintf(stderr, "\nError in pipe creation. ERRNO:%d\n", errno);
 			return EXIT_FAILURE;
 		}
-		iterative_fork_helper(&cmds[i], j, file_desc[1], envp);
+		m_fork_assist(&cmds[i], j, file_desc[1], envp);
 		close(file_desc [1]);
 		j = file_desc[0];
 	}
@@ -875,7 +861,7 @@ int exec_pipe_command(m_command* cmd, char* envp[]) {
 		fprintf(stderr, "Error completing final command: %s. ERRNO\"%d\"\n", cmd->m_c_tok[0], errno);
 		exit(EXIT_FAILURE);
 	}
-	signal(SIGINT, unmask_signal);
+	signal(SIGINT, sig_unmask);
 	return EXIT_SUCCESS;
 }
 
@@ -900,7 +886,7 @@ int main(int argc, char** argv, char** envp) {
 
 	if ( !isatty( (fileno(stdin) ) ) )
 	{
-		exec_from_file(argv, argc, envp);
+		m_command_file(argv, argc, envp);
 		return EXIT_SUCCESS;
 	}
 
@@ -914,7 +900,7 @@ int main(int argc, char** argv, char** envp) {
 
 	curr_dir_print();
 
-	while ( get_command(&cmd, stdin) && is_running() )
+	while ( m_cmd_eval(&cmd, stdin) && m_get_command() )
 	{
 		quash_run(&cmd, envp);
 	}

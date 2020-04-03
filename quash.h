@@ -88,11 +88,11 @@ char* substring(char* str, int begin, int end);
 
 
 /**
-	* Query if quash should accept more input or not.
+	* Determine if Quash gets more commands
 	*
-	* @return True if Quash should accept more input and false otherwise
+	* @return T if program is receiving commands, F otherwise
 	*/
-bool is_running();
+bool m_get_command();
 
 /**
 	* suspends execution loop
@@ -105,20 +105,25 @@ void suspend();
 void suspend_from_file();
 
 /**
-	* Mask Signal
+	* sig mask
 	*
-	* silences signals during quash execution for safety
-	*
-	* @param signal integer
+	* @param signal int
  */
-void mask_signal(int signal);
+void sig_mask(int sig);
 
 /**
-	* Unmask Signal
+	* sig unmask
 	*
 	* @param signal integer
  */
-void unmask_signal(int signal);
+void sig_unmask(int sig);
+
+
+/**
+	* Print Current Working Directory before shell commands
+	*/
+void curr_dir_print();
+
 
 /**
 	* Print tokens from a cmd struct
@@ -128,18 +133,13 @@ void unmask_signal(int signal);
 void print_cmd_tokens(m_command* cmd);
 
 /**
-	* Print Current Working Directory before shell commands
-	*/
-void curr_dir_print();
-
-/**
 	* Handles exiting signal from background processes
 	*
 	* @param signal int
 	* @param sig struct
 	* @param slot
 	*/
-void job_handler(int signal, siginfo_t* sig, void* slot);
+void m_handle_job(int signal, siginfo_t* sig, void* slot);
 
 /*
 	* Kill Command from jobs listing
@@ -150,7 +150,7 @@ void job_handler(int signal, siginfo_t* sig, void* slot);
 int kill_proc(m_command* cmd);
 
 /**
-	* Creates forks and redirects file streams for use in iterative fashion
+	* Make fork for file redirection
 	*
 	* @param cmd command struct
 	* @param fsi file descriptor in
@@ -158,7 +158,7 @@ int kill_proc(m_command* cmd);
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int iterative_fork_helper (m_command* cmd, int fsi, int fso, char* envp[]);
+int m_fork_assist (m_command* cmd, int fsi, int fso, char* envp[]);
 
 
 /**************************************************************************
@@ -174,14 +174,10 @@ int iterative_fork_helper (m_command* cmd, int fsi, int fso, char* envp[]);
 	*  @param in - an open file ready for reading
 	*  @return True if able to fill #m_command.cmdstr and false otherwise
 	*/
-bool get_command(m_command* cmd, FILE* in);
-
-/**************************************************************************
- * Shell Fuctionality
- **************************************************************************/
+bool m_cmd_eval(m_command* cmd, FILE* in);
 
 /**
-	* CD Implementation
+	* command cd
 	*
 	* @param cmd command struct
 	* Note: chdir will make new dir's if they don't exist
@@ -189,14 +185,14 @@ bool get_command(m_command* cmd, FILE* in);
 void cd(m_command* cmd);
 
 /**
-	* Echo Implementation
+	* command echo
 	*
 	* @param cmd command struct
  */
 void echo(m_command* cmd);
 
 /**
-	* Display running jobs
+	* command jobs
 	*/
 void jobs(m_command* cmd);
 
@@ -221,14 +217,14 @@ void set(m_command* cmd);
 	* @param argv argument vector from the command line
 	* @param envp environment variables
 	*/
-void exec_from_file(char** argv, int argc, char* envp[]);
+void m_command_file(char** argv, int argc, char* envp[]);
 
 /**************************************************************************
  * Running Quash Functions
  **************************************************************************/
 
 /**
-	* Runs the specified Quash command
+	* Execute Quash command
 	*
 	* @param cmd command struct
 	* @param envp environment variables
@@ -242,7 +238,7 @@ void quash_run(m_command* cmd, char** envp);
 	* @param envp environment variables
 	* @return RETURN_CODE
  */
-int exec_basic_command(m_command* cmd, char* envp[]);
+int prim_cmd(m_command* cmd, char* envp[]);
 
 /**
 	* Command logic
@@ -262,7 +258,7 @@ int command_logic(m_command* cmd, char* envp[]);
 	* @param envp environment variables
 	* @return RETURN_CODE
 	*/
-int exec_redir_command(m_command* cmd, bool io, char* envp[]);
+int input_io_cmd(m_command* cmd, bool io, char* envp[]);
 
 /**
 	* Executes any command with an & present
@@ -277,9 +273,9 @@ int exec_backg_command(m_command* cmd, char* envp[]);
 	* Executes any command with an | present
 	*
 	* @param cmd command struct
-	* @param envp environment variables
+	* @param envp environment array
 	* @return RETURN_CODE
 	*/
-int exec_pipe_command(m_command* cmd, char* envp[]);
+int m_command_pipe(m_command* cmd, char* envp[]);
 
 #endif // QUASH_H
