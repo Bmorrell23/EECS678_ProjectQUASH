@@ -1,4 +1,0 @@
-pwd
-cd /usr
-pwd
-quit

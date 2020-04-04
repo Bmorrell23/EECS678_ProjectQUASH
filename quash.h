@@ -41,7 +41,7 @@ typedef struct m_command {
 	// -- length of the q_comm_str character buffer
 	size_t comm_siz;
 
-		// -- tokenized command array length --
+	// -- tokenized command array length --
 	size_t symb_size;
 } m_command;
 
@@ -49,14 +49,18 @@ typedef struct m_command {
 //	Job struct for handeling a running process
 
 typedef struct m_job {
-	char* j_comm_str;							///< The command issued for this process
-	bool running;							///< Status for this process (running or not)
-	int pid;								///< Process ID #
-	int jid;								///< Job ID #
+	// -- command string for job proccess --
+	char* j_comm_str;
+
+	// -- process running true, false otherwise --
+	bool running;
+
+	// -- process id --
+	int pid;
+
+	// -- job id --
+	int jid;
 } m_job;
-
-
-
 
 	// -- Signal Masking variables --
 
@@ -95,6 +99,7 @@ void sig_mask(int sig);
 
 /**
 	* @brief sig unmask
+	* example Signals Lab05
 	*
 	* @param signal int
  */

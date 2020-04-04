@@ -22,7 +22,7 @@ static int num_jobs = 0;
 
 
 /**
- 	* Quash begin execution
+ 	* @brief Quash begin execution
 	*/
 static void start_quash()
 {
@@ -30,7 +30,7 @@ static void start_quash()
 }
 
 /**
-	* Flag file commands supply
+	* @brief Flag file commands
 	*/
 static void start_from_file()
 {
@@ -39,7 +39,7 @@ static void start_from_file()
 
 
 /**
-	* Determine if Quash gets more commands
+	* @brief determine if Quash gets more commands
 	*
 	* @return T if program is receiving commands, F otherwise
 	*/
@@ -49,7 +49,7 @@ bool m_get_command()
 }
 
 /**
-	* suspends execution loop
+	* @brief suspends execution loop
 	*/
 void suspend()
 {
@@ -78,6 +78,7 @@ void sig_mask(int sig)
 /**
 	* @brief sig unmask
 	* example Signals Lab05
+	*
 	* @param signal int
  */
 void sig_unmask(int sig)
@@ -87,7 +88,7 @@ void sig_unmask(int sig)
 
 
 /**
-	* Print current directory before shell inputs
+	* @brief Print current directory before shell inputs
 	*/
 void curr_dir_print()
 {
@@ -118,14 +119,14 @@ void m_handle_job(int signal, siginfo_t* sig, void* pos)
 	finish:
 	if ( b < num_jobs )
 	{
-		printf("\n[%d] %d finished %s\n", all_jobs[b].jid, p, all_jobs[b].j_comm_str);
+		printf("\n[%d] %d finished!! %s\n", all_jobs[b].jid, p, all_jobs[b].j_comm_str);
 		all_jobs[b].running = true;
 		free(all_jobs[b].j_comm_str);
 	}
 }
 
 /**
-	* @brief Make fork for file redirection
+	* @brief create fork for file redirection
 	*
 	* @param qcommd command struct
 	* @param fdi file descriptor in
@@ -163,10 +164,11 @@ int m_fork_assist (m_command* qcommd, int fdi, int fdo, char* envp[])
 			// -- close file input --
 			close (fdi);
 		}
-		//------------------------------------------------------------------------------
-		// qcommd execute
-		//-----------------------------------------------------------------------------
-		if ( execvpe(qcommd->m_c_tok[0], qcommd->m_c_tok, envp) < 0	&& errno == 2 ) {
+
+		// --  qcommd execvpe() --
+
+		if ( execvpe(qcommd->m_c_tok[0], qcommd->m_c_tok, envp) < 0	&& errno == 2 )
+		{
 			fprintf(stderr, "Command: \"%s\" cannot be found.\n", qcommd->m_c_tok[0]);
 			exit(1);
 		}
@@ -211,10 +213,11 @@ bool m_cmd_parse(m_command* qcommd, FILE* in)
 
 		//------------------------------------------------------------------------------
 		// Tokenize command arguments
-		//------------------------------------------------------------------------------
-		char* token = malloc( sizeof(char*) * 32 );
 
+		char* token = malloc( sizeof(char*) * 32 );
 		qcommd->m_c_tok = malloc( sizeof(char*) * 32 );
+
+		// -- reset size --
 		qcommd->symb_size = 0;
 
 		token = strtok (qcommd->q_comm_str," ");
@@ -377,7 +380,7 @@ void m_command_file(char** argv, int argc, char* envp[]) {
 	}
 
 
-	// -- suspend File execution --
+	// -- suspend file execution --
 
 	suspend_file_exec();
 }
@@ -431,7 +434,7 @@ int command_logic(m_command* qcommd, char* envp[])
 	// -- flag for command input redirection "<" --
 	bool in_flag = false;
 
-	// -- flag for output redirection --
+	// -- flag for output redirection ">" --
 	bool out_flag = false;
 
 	// -- Redirect command logic --
@@ -553,7 +556,7 @@ int input_io_cmd(m_command* qcommd, bool i_o, char* envp[])
 	ret = fork();
 	if ( ret < 0 )
 	{
-		fprintf(stderr, "Error forking redir command. ERRNO\"%d\"\n", errno);
+		fprintf(stderr, "Forking error redir command. ERRNO\"%d\"\n", errno);
 		exit(1);
 	}
 
@@ -696,16 +699,17 @@ int m_cmd_background(m_command* qcommd, char* envp[])
 	else {
 		////////////////////////////////////////////////////////////////////////////////
 		// Map Child Process to different output
-		////////////////////////////////////////////////////////////////////////////////
+
 		char temp_file[1024];
 		char cpid [32];
 		int child_pid = getpid();
 
 		snprintf(cpid, 32,"%d",child_pid);
 		strcpy(temp_file, cpid);
-		strcat(temp_file, "-temp_file_output.out");
+		strcat(temp_file, "-out_tmp.txt");
 
-		// -- per the Linux
+		// -- per the Linux open(3) man page --
+
 		fds = open(temp_file, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		if ( fds < 0 ) {
