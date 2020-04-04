@@ -211,10 +211,10 @@ bool m_cmd_parse(m_command* qcommd, FILE* in)
 		if ( !(int)qcommd->comm_siz )
 			return true;
 
-		//------------------------------------------------------------------------------
-		// Tokenize command arguments
 
+		//  -- tokenize command arguments --
 		char* token = malloc( sizeof(char*) * 32 );
+
 		qcommd->m_c_tok = malloc( sizeof(char*) * 32 );
 
 		// -- reset size --
@@ -231,7 +231,7 @@ bool m_cmd_parse(m_command* qcommd, FILE* in)
 
 		free(token);
 
-		// -- remove
+		// -- remove end token --
 		qcommd->m_c_tok[qcommd->symb_size] = '\0';
 		return true;
 	}
@@ -593,7 +593,7 @@ int input_io_cmd(m_command* qcommd, bool i_o, char* envp[])
 			exit(1);
 		}
 
-		// -- Allow input and output streams to be switched --
+		// -- allow input and output streams to be switched --
 
 		if ( i_o )
 		{
@@ -697,8 +697,7 @@ int m_cmd_background(m_command* qcommd, char* envp[])
 	// -- child process after fork --
 
 	else {
-		////////////////////////////////////////////////////////////////////////////////
-		// Map Child Process to different output
+
 
 		char temp_file[1024];
 		char cpid [32];
@@ -731,6 +730,8 @@ int m_cmd_background(m_command* qcommd, char* envp[])
 			fprintf(stderr, "Error executing %s. ERRNO\"%d\"\n", qcommd->m_c_tok[0], errno);
 			exit(1);
 		}
+
+		// -- unmask SIGINT before exiting --
 		signal(SIGINT, sig_unmask);
 		exit(0);
 	}
