@@ -1,4 +1,4 @@
-32/**
+/**
  * @file quash.c
  *
  * Blake Morrell & Matthew Felsen
@@ -108,13 +108,16 @@ void curr_dir_print()
 void m_handle_job(int signal, siginfo_t* sig, void* pos)
 {
 	pid_t p = sig->si_pid;
-	int b = 0;
-	for ( ; b < num_jobs; b++)
+	int b;
+	for ( b = 0; b < num_jobs; b++)
 	{
 		if ( all_jobs[b].pid == p )
-			break;
+			goto finish;
 	}
-	if ( b < num_jobs ) {
+
+	finish:
+	if ( b < num_jobs )
+	{
 		printf("\n[%d] %d finished %s\n", all_jobs[b].jid, p, all_jobs[b].j_comm_str);
 		all_jobs[b].running = true;
 		free(all_jobs[b].j_comm_str);
@@ -134,7 +137,8 @@ int m_fork_assist (m_command* qcommd, int fdi, int fdo, char* envp[])
 {
 	pid_t p;
 
-	if ( !(p = fork ()) ) {
+	if ( !(p = fork ()) )
+	{
 
 		// -- file out implementation --
 
@@ -208,10 +212,10 @@ bool m_cmd_parse(m_command* qcommd, FILE* in)
 		//------------------------------------------------------------------------------
 		// Tokenize command arguments
 		//------------------------------------------------------------------------------
+		char* token = malloc( sizeof(char*) * 32 );
+
 		qcommd->m_c_tok = malloc( sizeof(char*) * 32 );
 		qcommd->symb_size = 0;
-
-		char* token = malloc( sizeof(char*) * 32 );
 
 		token = strtok (qcommd->q_comm_str," ");
 		while ( token != NULL )
@@ -260,12 +264,13 @@ char* substring(char* str, int begin, int end)
 	*/
 void cd(m_command* qcommd)
 {
-	if ( qcommd->symb_size < 2 ) {
-		if ( chdir(getenv("HOME")) )
-			printf("cd: %s: Cannot navigate to $HOME\n", getenv("HOME"));
-	}
-	else if ( qcommd->symb_size > 2 )
-		puts("Too many arguments");
+	if ( qcommd->symb_size > 2 )
+		puts("Only specify 1 argument");
+	else if ( qcommd->symb_size < 2 )
+		{
+			if ( chdir(getenv("HOME")) )
+				printf("cd: %s: ERROR - There was a problem going to $HOME\n", getenv("HOME"));
+		}
 	else {
 		if ( chdir(qcommd->m_c_tok[1]) )
 			printf("cd: %s: No such file or directory\n", qcommd->m_c_tok[1]);
@@ -341,13 +346,9 @@ void set(m_command* qcommd)
 			puts("\tset PATH=/directory/to/use/for/path\n");
 
 		}
-
 		// -- Set the environment variables --
-
-		else //if ( !strcmp(env, "PATH") || !strcmp(env, "HOME") )
+		else
 			setenv(env_var, directory_var, 1);
-		//else
-			//printf("set: available only for PATH or HOME environment variables\n");
 	}
 }
 
@@ -585,7 +586,7 @@ int input_io_cmd(m_command* qcommd, bool i_o, char* envp[])
 
 		if ( fds < 0 )
 		{
-			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", qcommd->m_c_tok[qcommd->symb_size - 1], errno);
+			fprintf(stderr, "\nCould not open %s. ERRNO\"%d\"\n", qcommd->m_c_tok[qcommd->symb_size - 1], errno);
 			exit(1);
 		}
 
@@ -595,7 +596,7 @@ int input_io_cmd(m_command* qcommd, bool i_o, char* envp[])
 		{
 			if (dup2(fds, STDIN_FILENO) < 0)
 			{
-				fprintf(stderr, "\nError redirecting STDIN to %s. ERRNO\"%d\"\n", qcommd->m_c_tok[qcommd->symb_size - 1], errno);
+				fprintf(stderr, "\nCould not redirect STDIN to %s. ERRNO\"%d\"\n", qcommd->m_c_tok[qcommd->symb_size - 1], errno);
 				exit(1);
 			}
 		}
@@ -603,7 +604,7 @@ int input_io_cmd(m_command* qcommd, bool i_o, char* envp[])
 		{
 			if (dup2(fds, STDOUT_FILENO) < 0)
 			{
-				fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", qcommd->m_c_tok[qcommd->symb_size - 1], errno);
+				fprintf(stderr, "\nCould not redirect STDOUT to %s. ERRNO\"%d\"\n", qcommd->m_c_tok[qcommd->symb_size - 1], errno);
 				exit(1);
 			}
 		}
@@ -708,12 +709,12 @@ int m_cmd_background(m_command* qcommd, char* envp[])
 		fds = open(temp_file, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		if ( fds < 0 ) {
-			fprintf(stderr, "\nError opening %s. ERRNO\"%d\"\n", temp_file, errno);
+			fprintf(stderr, "\nCould not open %s. ERRNO\"%d\"\n", temp_file, errno);
 			exit(1);
 		}
 
 		if ( dup2(fds, STDOUT_FILENO) < 0 ) {
-			fprintf(stderr, "\nError redirecting STDOUT to %s. ERRNO\"%d\"\n", temp_file, errno);
+			fprintf(stderr, "\nCould not redirect STDOUT to %s. ERRNO\"%d\"\n", temp_file, errno);
 			exit(1);
 		}
 
